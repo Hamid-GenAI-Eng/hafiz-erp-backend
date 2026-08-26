@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const CrmController_1 = require("../controllers/CrmController");
+const router = (0, express_1.Router)();
+router.get('/', CrmController_1.CrmController.getAllCustomers);
+router.get('/:id', CrmController_1.CrmController.getCustomerById);
+router.post('/', CrmController_1.CrmController.createCustomer);
+router.put('/:id', CrmController_1.CrmController.updateCustomer);
+router.delete('/:id', CrmController_1.CrmController.deleteCustomer);
+router.get('/:id/ledger', CrmController_1.CrmController.getLedgerHistory);
+router.post('/:id/ledger', CrmController_1.CrmController.createLedgerEntry);
+router.put('/:id/ledger/:ledgerId', CrmController_1.CrmController.updateLedgerEntry);
+exports.default = router;
