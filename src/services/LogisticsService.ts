@@ -1,5 +1,5 @@
 import { db } from '../config/database';
-import { logistics_vehicles, logistics_employees, logistics_expenses, logistics_bucket_rentals } from '../models/schema';
+import { logistics_vehicles, logistics_employees, logistics_expenses, logistics_bucket_rentals, invoices } from '../models/schema';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
@@ -265,5 +265,34 @@ export class LogisticsService {
         net_profit: total_income - total_expense
       };
     });
+  }
+
+  // ----------------------------------------------------
+  // OUTSIDE LOADER FEES
+  // ----------------------------------------------------
+  static async getOutsideLoaderFees() {
+    const rawInvoices = await db
+      .select({
+        id: invoices.id,
+        invoice_number: invoices.invoice_number,
+        date: invoices.date,
+        outside_loader_fee: invoices.outside_loader_fee
+      })
+      .from(invoices)
+      .where(sql`${invoices.outside_loader_fee} > 0`);
+
+    return rawInvoices.map((inv: any) => ({
+      id: `loader-${inv.id}`,
+      vehicle_id: null,
+      invoice_id: inv.id,
+      date: inv.date,
+      amount: inv.outside_loader_fee,
+      type: 'expense',
+      category: 'Outside Loader',
+      description: `Outside Loader Fee for Invoice ${inv.invoice_number}`,
+      version: 1,
+      created_at: new Date(),
+      updated_at: new Date()
+    })).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
 }

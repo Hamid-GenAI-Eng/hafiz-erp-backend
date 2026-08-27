@@ -38,7 +38,12 @@ class InvoiceController {
             res.json(invoice);
         }
         catch (err) {
-            res.status(500).json({ error: err.message });
+            if (err.message && err.message.includes('Insufficient stock')) {
+                res.status(400).json({ error: err.message });
+            }
+            else {
+                res.status(500).json({ error: err.message });
+            }
         }
     }
     static async deleteInvoice(req, res) {

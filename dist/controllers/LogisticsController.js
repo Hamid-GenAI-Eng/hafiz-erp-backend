@@ -201,5 +201,17 @@ class LogisticsController {
             res.status(500).json({ error: err.message });
         }
     }
+    // ----------------------------------------------------
+    // OUTSIDE LOADER FEES
+    // ----------------------------------------------------
+    static async getOutsideLoaderFees(req, res) {
+        try {
+            const data = await LogisticsService_1.LogisticsService.getOutsideLoaderFees();
+            res.json(data);
+        }
+        catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    }
 }
 exports.LogisticsController = LogisticsController;

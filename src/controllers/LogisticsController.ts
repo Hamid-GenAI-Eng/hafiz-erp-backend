@@ -164,4 +164,14 @@ export class LogisticsController {
       res.json(data);
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   }
+
+  // ----------------------------------------------------
+  // OUTSIDE LOADER FEES
+  // ----------------------------------------------------
+  static async getOutsideLoaderFees(req: Request, res: Response) {
+    try {
+      const data = await LogisticsService.getOutsideLoaderFees();
+      res.json(data);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  }
 }

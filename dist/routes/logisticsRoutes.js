@@ -23,6 +23,7 @@ router.get('/bucket-rentals', LogisticsController_1.LogisticsController.getAllBu
 router.post('/bucket-rentals', LogisticsController_1.LogisticsController.createBucketRental);
 router.put('/bucket-rentals/:id', LogisticsController_1.LogisticsController.updateBucketRental);
 router.delete('/bucket-rentals/:id', LogisticsController_1.LogisticsController.deleteBucketRental);
-// Vehicle Profits
+// Vehicle Profits & Fees
 router.get('/vehicle-profits', LogisticsController_1.LogisticsController.getVehicleProfits);
+router.get('/outside-loader-fees', LogisticsController_1.LogisticsController.getOutsideLoaderFees);
 exports.default = router;

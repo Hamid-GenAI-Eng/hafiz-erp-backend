@@ -74,7 +74,7 @@ export class DiaryController {
       if (!Array.isArray(ids)) {
         return res.status(400).json({ error: "ids must be an array" });
       }
-      await DiaryService.settleMultiple(ids);
+      await DiaryService.settleMultiple(req.body);
       res.json({ message: "Diary entries settled successfully" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -92,8 +92,8 @@ export class DiaryController {
 
   static async migrateToLedger(req: Request, res: Response) {
     try {
-      await DiaryService.migrateToLedger(req.body);
-      res.json({ message: "Migrated to ledger successfully" });
+      const customerId = await DiaryService.migrateToLedger(req.body);
+      res.json({ message: "Migrated to ledger successfully", customer_id: customerId });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

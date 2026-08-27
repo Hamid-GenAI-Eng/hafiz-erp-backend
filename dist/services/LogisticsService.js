@@ -251,5 +251,32 @@ class LogisticsService {
             };
         });
     }
+    // ----------------------------------------------------
+    // OUTSIDE LOADER FEES
+    // ----------------------------------------------------
+    static async getOutsideLoaderFees() {
+        const rawInvoices = await database_1.db
+            .select({
+            id: schema_1.invoices.id,
+            invoice_number: schema_1.invoices.invoice_number,
+            date: schema_1.invoices.date,
+            outside_loader_fee: schema_1.invoices.outside_loader_fee
+        })
+            .from(schema_1.invoices)
+            .where((0, drizzle_orm_1.sql) `${schema_1.invoices.outside_loader_fee} > 0`);
+        return rawInvoices.map((inv) => ({
+            id: `loader-${inv.id}`,
+            vehicle_id: null,
+            invoice_id: inv.id,
+            date: inv.date,
+            amount: inv.outside_loader_fee,
+            type: 'expense',
+            category: 'Outside Loader',
+            description: `Outside Loader Fee for Invoice ${inv.invoice_number}`,
+            version: 1,
+            created_at: new Date(),
+            updated_at: new Date()
+        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
 }
 exports.LogisticsService = LogisticsService;

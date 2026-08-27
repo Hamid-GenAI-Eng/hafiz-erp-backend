@@ -1,6 +1,6 @@
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "../config/database";
-import { diary, diary_items, products, logistics_expenses, ledgers, customers } from "../models/schema";
+import { diary, diary_items, products, logistics_expenses, ledgers, customers, invoices, invoice_items } from "../models/schema";
 import { randomUUID } from "crypto";
 
 export class DiaryService {
@@ -80,7 +80,7 @@ export class DiaryService {
         }).run();
 
         if (item.product_id && item.product_id !== 'LABOUR' && item.quantity > 0) {
-          tx.run(sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = '${new Date().toISOString()}' WHERE id = '${item.product_id}'`);
+          tx.run(sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`);
         }
       }
 
@@ -110,7 +110,7 @@ export class DiaryService {
     const items = tx.select().from(diary_items).where(eq(diary_items.diary_id, diaryId)).all();
     for (const item of items) {
        if (item.product_id && item.product_id !== 'LABOUR' && item.quantity > 0) {
-          tx.run(sql`UPDATE products SET current_qty = current_qty + ${item.quantity}, updated_at = '${new Date().toISOString()}' WHERE id = '${item.product_id}'`);
+          tx.run(sql`UPDATE products SET current_qty = current_qty + ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`);
        }
     }
     tx.delete(diary_items).where(eq(diary_items.diary_id, diaryId)).run();
@@ -165,7 +165,7 @@ export class DiaryService {
         }).run();
 
         if (item.product_id && item.product_id !== 'LABOUR' && item.quantity > 0) {
-          tx.run(sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = '${new Date().toISOString()}' WHERE id = '${item.product_id}'`);
+          tx.run(sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`);
         }
       }
 
@@ -223,18 +223,138 @@ export class DiaryService {
     });
   }
 
-  static async settleMultiple(ids: string[]) {
+  static async settleMultiple(data: any) {
     return db.transaction((tx: any) => {
-       for (const id of ids) {
+      const { ids, shipping, internal_shipping, outside_loader_fee, loaders } = data;
+      
+      let totalBill = 0;
+      let totalPaid = 0;
+      let allItems: any[] = [];
+      let customerId: string | null = null;
+      let customerName = "Walk-in";
+
+      for (const id of ids) {
          const existing = tx.select().from(diary).where(eq(diary.id, id)).get();
          if (existing && existing.status === 'pending') {
+            if (!customerId && existing.customer_id) customerId = existing.customer_id;
+            if (existing.customer_name) customerName = existing.customer_name;
+            
+            totalBill += existing.total_bill;
+            totalPaid += existing.amount_paid;
+            
+            let details: any = {};
+            try {
+              details = typeof existing.material_details === 'string' ? JSON.parse(existing.material_details) : existing.material_details;
+            } catch (e) {}
+
+            if (details.items) allItems = allItems.concat(details.items);
+
             tx.update(diary).set({
                status: 'cleared',
                version: existing.version + 1,
                updated_at: new Date()
             }).where(eq(diary.id, id)).run();
          }
-       }
+      }
+
+      if (totalBill > 0 || totalPaid > 0) {
+         const d = new Date();
+         const invoiceNumber = `INV-${Math.floor(Math.random() * 1000000)}`;
+         const invoiceId = randomUUID();
+         
+         const totalShipping = Number(shipping) || 0;
+         const totalInternal = Number(internal_shipping) || 0;
+         const totalOutside = Number(outside_loader_fee) || 0;
+
+         // 1. Create Formal Invoice for Sales Module
+         tx.insert(invoices).values({
+            id: invoiceId,
+            invoice_number: invoiceNumber,
+            customer_id: customerId,
+            customer_name: customerName,
+            status: 'Completed',
+            date: d.toISOString().split("T")[0],
+            time: d.toISOString().split("T")[1].slice(0, 5),
+            subtotal: totalBill - totalShipping,
+            shipping: totalShipping,
+            internal_shipping: totalInternal,
+            outside_loader_fee: totalOutside,
+            grand_total: totalBill,
+            amount_paid: totalPaid,
+            version: 1,
+            created_at: d,
+            updated_at: d
+         }).run();
+
+         // 2. Create Invoice Items
+         for (const item of allItems) {
+            tx.insert(invoice_items).values({
+               id: randomUUID(),
+               invoice_id: invoiceId,
+               product_id: item.product_id || null,
+               description: item.description || '',
+               quantity: item.quantity || 0,
+               unit_price: item.unit_price || 0,
+               total_price: item.total_price || 0,
+               version: 1,
+               created_at: d,
+               updated_at: d
+            }).run();
+         }
+
+         // 3. Logistics Integration (Income for Company Vehicles)
+         if (loaders && Array.isArray(loaders)) {
+            for (const loader of loaders) {
+               if (loader.vehicle_id && loader.fee > 0) {
+                  tx.insert(logistics_expenses).values({
+                     id: randomUUID(),
+                     vehicle_id: String(loader.vehicle_id),
+                     invoice_id: invoiceId,
+                     date: d.toISOString().split("T")[0],
+                     time: d.toISOString().split("T")[1].slice(0, 5),
+                     type: "income",
+                     amount: loader.fee,
+                     category: "Shipping",
+                     description: `Delivery for Invoice ${invoiceNumber} (via Daily Diary Settle)`,
+                     version: 1,
+                     created_at: d,
+                     updated_at: d
+                  }).run();
+               }
+            }
+         }
+
+         // 4. Update Ledger if Customer is registered
+         if (customerId) {
+            const cust = tx.select().from(customers).where(eq(customers.id, customerId)).get();
+            if (cust) {
+               const newRunningBalance = cust.balance + (totalBill - totalPaid);
+               
+               tx.insert(ledgers).values({
+                  id: randomUUID(),
+                  customer_id: customerId,
+                  date: d.toISOString().split("T")[0],
+                  time: d.toISOString().split("T")[1].slice(0, 5),
+                  type: "charge",
+                  amount: totalBill, 
+                  payment_amount: totalPaid,
+                  running_balance: newRunningBalance,
+                  description: `Invoice ${invoiceNumber} (Settled from Daily Diary)`,
+                  reference: invoiceId,
+                  version: 1,
+                  created_at: d,
+                  updated_at: d
+               }).run();
+
+               tx.update(customers).set({
+                  balance: newRunningBalance,
+                  total_charged: cust.total_charged + totalBill,
+                  total_paid: cust.total_paid + totalPaid,
+                  updated_at: d
+               }).where(eq(customers.id, customerId)).run();
+            }
+         }
+      }
     });
   }
 
@@ -262,16 +382,50 @@ export class DiaryService {
   static async migrateToLedger(data: any) {
     return db.transaction((tx: any) => {
       const { cid, name, phone, entryIds } = data;
-      if (!cid) throw new Error("Customer ID is required to migrate to ledger");
+      let customerId = cid;
+
+      if (!customerId) {
+        if (!name) throw new Error("Customer name is required to create a new ledger account");
+        customerId = randomUUID();
+        const customerNumber = `CUST-${Math.floor(Math.random() * 100000)}`;
+        tx.insert(customers).values({
+            id: customerId,
+            customer_number: customerNumber,
+            name: name,
+            phone: phone || '',
+            type: 'retail',
+            balance: 0,
+            total_charged: 0,
+            total_paid: 0,
+            created_at: new Date(),
+            updated_at: new Date()
+        }).run();
+      }
 
       let totalBill = 0;
       let totalPaid = 0;
+      let allItems: any[] = [];
+      let allLoaders: any[] = [];
+      let totalShipping = 0;
+      let totalInternalShipping = 0;
+      let totalOutsideLoader = 0;
 
       for (const id of entryIds) {
          const existing = tx.select().from(diary).where(eq(diary.id, id)).get();
          if (existing && existing.status !== 'ledgered') {
             totalBill += existing.total_bill;
             totalPaid += existing.amount_paid;
+            
+            let details: any = {};
+            try {
+              details = typeof existing.material_details === 'string' ? JSON.parse(existing.material_details) : existing.material_details;
+            } catch (e) {}
+
+            if (details.items) allItems = allItems.concat(details.items);
+            if (details.loaders) allLoaders = allLoaders.concat(details.loaders);
+            if (details.shipping) totalShipping += details.shipping;
+            if (details.internal_shipping) totalInternalShipping += details.internal_shipping;
+            if (details.outside_loader_fee) totalOutsideLoader += details.outside_loader_fee;
 
             tx.update(diary).set({
                status: 'ledgered',
@@ -283,20 +437,102 @@ export class DiaryService {
 
       if (totalBill > 0 || totalPaid > 0) {
          const d = new Date();
-         tx.insert(ledgers).values({
-            id: randomUUID(),
-            customer_id: cid,
+         const cust = tx.select().from(customers).where(eq(customers.id, customerId)).get();
+         if (!cust) throw new Error("Customer not found for ledger migration");
+
+         const newRunningBalance = cust.balance + (totalBill - totalPaid);
+         const invoiceNumber = `INV-${Math.floor(Math.random() * 1000000)}`;
+         const invoiceId = randomUUID();
+
+         // 1. Create Formal Invoice for Sales Module (without double-deducting stock)
+         tx.insert(invoices).values({
+            id: invoiceId,
+            invoice_number: invoiceNumber,
+            customer_id: customerId,
+            customer_name: cust.name,
+            status: 'Completed',
             date: d.toISOString().split("T")[0],
             time: d.toISOString().split("T")[1].slice(0, 5),
-            type: "invoice",
-            amount: totalBill, 
-            payment_amount: totalPaid,
-            description: `Migrated from Daily Diary (${entryIds.length} entries)`,
+            subtotal: totalBill - totalShipping,
+            shipping: totalShipping,
+            internal_shipping: totalInternalShipping,
+            outside_loader_fee: totalOutsideLoader,
+            grand_total: totalBill,
+            amount_paid: totalPaid,
             version: 1,
             created_at: d,
             updated_at: d
          }).run();
+
+         // 2. Create Invoice Items
+         for (const item of allItems) {
+            tx.insert(invoice_items).values({
+               id: randomUUID(),
+               invoice_id: invoiceId,
+               product_id: item.product_id || null,
+               description: item.description || '',
+               quantity: item.quantity || 0,
+               unit_price: item.unit_price || 0,
+               total_price: item.total_price || 0,
+               version: 1,
+               created_at: d,
+               updated_at: d
+            }).run();
+         }
+
+         // 3. Logistics Integration (Income for Company Vehicles)
+         for (const loader of allLoaders) {
+            if (loader.vehicle_id && loader.fee > 0) {
+               tx.insert(logistics_expenses).values({
+                  id: randomUUID(),
+                  vehicle_id: String(loader.vehicle_id),
+                  invoice_id: invoiceId,
+                  date: d.toISOString().split("T")[0],
+                  time: d.toISOString().split("T")[1].slice(0, 5),
+                  type: "income",
+                  amount: loader.fee,
+                  category: "Shipping",
+                  description: `Delivery for Invoice ${invoiceNumber} (via Daily Diary)`,
+                  version: 1,
+                  created_at: d,
+                  updated_at: d
+               }).run();
+            }
+         }
+
+         // 4. Create Ledger Entry linking to Invoice
+         tx.insert(ledgers).values({
+            id: randomUUID(),
+            customer_id: customerId,
+            date: d.toISOString().split("T")[0],
+            time: d.toISOString().split("T")[1].slice(0, 5),
+            type: "charge",
+            amount: totalBill, 
+            payment_amount: totalPaid,
+            running_balance: newRunningBalance,
+            description: `Invoice ${invoiceNumber} (Migrated from Daily Diary)`,
+            reference: invoiceId,
+            version: 1,
+            created_at: d,
+            updated_at: d
+         }).run();
+
+         tx.update(customers).set({
+            balance: newRunningBalance,
+            total_charged: cust.total_charged + totalBill,
+            total_paid: cust.total_paid + totalPaid,
+            updated_at: d
+         }).where(eq(customers.id, customerId)).run();
+         
+         // Update the diary entries so they officially belong to this new customer
+         if (!cid) {
+            for (const id of entryIds) {
+               tx.update(diary).set({ customer_id: customerId }).where(eq(diary.id, id)).run();
+            }
+         }
       }
+
+      return customerId;
     });
   }
 }

@@ -9,6 +9,9 @@ const better_sqlite3_1 = require("drizzle-orm/better-sqlite3");
 const postgres_1 = __importDefault(require("postgres"));
 const better_sqlite3_2 = __importDefault(require("better-sqlite3"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
+const fs_1 = __importDefault(require("fs"));
 dotenv_1.default.config();
 exports.DB_TYPE = process.env.DB_TYPE || 'sqlite'; // 'sqlite' or 'postgres'
 let db; // We will use a generic wrapper or cast as needed
@@ -18,7 +21,12 @@ if (exports.DB_TYPE === 'postgres') {
     console.log('Connected to PostgreSQL (Supabase)');
 }
 else {
-    const sqlite = new better_sqlite3_2.default('sqlite.db');
+    const dbDir = path_1.default.join(os_1.default.homedir(), '.hafizerp');
+    if (!fs_1.default.existsSync(dbDir)) {
+        fs_1.default.mkdirSync(dbDir, { recursive: true });
+    }
+    const dbPath = path_1.default.join(dbDir, 'sqlite.db');
+    const sqlite = new better_sqlite3_2.default(dbPath);
     exports.db = db = (0, better_sqlite3_1.drizzle)(sqlite);
-    console.log('Connected to local SQLite database');
+    console.log('Connected to local SQLite database at ' + dbPath);
 }

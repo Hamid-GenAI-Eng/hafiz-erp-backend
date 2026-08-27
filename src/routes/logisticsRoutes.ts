@@ -27,7 +27,8 @@ router.post('/bucket-rentals', LogisticsController.createBucketRental);
 router.put('/bucket-rentals/:id', LogisticsController.updateBucketRental);
 router.delete('/bucket-rentals/:id', LogisticsController.deleteBucketRental);
 
-// Vehicle Profits
+// Vehicle Profits & Fees
 router.get('/vehicle-profits', LogisticsController.getVehicleProfits);
+router.get('/outside-loader-fees', LogisticsController.getOutsideLoaderFees);
 
 export default router;

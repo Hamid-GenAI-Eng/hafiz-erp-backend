@@ -111,21 +111,47 @@ class ProductService {
             return newProduct;
         }
     }
-    static async updateProduct(id, data, incomingVersion) {
-        const existing = await this.getProductById(id);
-        if (!existing)
-            throw new Error('Product not found');
-        if (existing.version !== incomingVersion)
-            throw new Error('409: Conflict - version mismatch');
-        // Strip read-only fields
-        const { id: _id, sku, created_at, updated_at, deleted_at, device_id, version, amount_paid, ...safeData } = data;
-        const updatedData = {
-            ...safeData,
-            version: existing.version + 1,
-            updated_at: new Date()
-        };
-        await database_1.db.update(schema_1.products).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.products.id, id));
-        return await this.getProductById(id);
+    static updateProduct(id, data, incomingVersion) {
+        return database_1.db.transaction((tx) => {
+            const existing = tx.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).get();
+            if (!existing)
+                throw new Error('Product not found');
+            if (existing.version !== incomingVersion)
+                throw new Error('409: Conflict - version mismatch');
+            const { id: _id, sku, created_at, updated_at, deleted_at, device_id, version, amount_paid, ...safeData } = data;
+            const qty_difference = (safeData.current_qty !== undefined) ? Number(safeData.current_qty) - existing.current_qty : 0;
+            const updatedData = {
+                ...safeData,
+                version: existing.version + 1,
+                updated_at: new Date().toISOString()
+            };
+            tx.update(schema_1.products).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).run();
+            if (qty_difference !== 0 && existing.supplier_id) {
+                const costPrice = Number(safeData.cost_price || existing.cost_price || 0);
+                let billAmount = 0;
+                let paymentAmount = 0;
+                if (qty_difference > 0) {
+                    billAmount = qty_difference * costPrice;
+                }
+                else {
+                    paymentAmount = Math.abs(qty_difference) * costPrice;
+                }
+                if (billAmount > 0 || paymentAmount > 0) {
+                    tx.insert(schema_1.supplier_ledgers).values({
+                        id: (0, crypto_1.randomUUID)(),
+                        supplier_id: existing.supplier_id,
+                        date: new Date().toISOString().split("T")[0],
+                        description: `Manual Stock Adjustment: ${existing.name} (${qty_difference > 0 ? '+' : ''}${qty_difference} qty)`,
+                        bill_amount: billAmount,
+                        payment_amount: paymentAmount,
+                        version: 1,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }).run();
+                }
+            }
+            return tx.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).get();
+        });
     }
     static async deleteProduct(id, incomingVersion) {
         const existing = await this.getProductById(id);

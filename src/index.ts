@@ -13,6 +13,8 @@ import diaryRoutes from './routes/diary';
 import notesRoutes from './routes/notes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import syncRoutes from './routes/syncRoutes';
+import { startSyncWorker } from './syncWorker';
 
 dotenv.config();
 
@@ -36,11 +38,17 @@ app.use('/api/diary', diaryRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/sync', syncRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Backend server running on http://localhost:${PORT}`);
+    startSyncWorker();
+  });
+}
+
+export default app;

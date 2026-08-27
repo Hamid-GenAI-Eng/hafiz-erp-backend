@@ -142,7 +142,27 @@ class CrmService {
             version: cust.version + 1,
             updated_at: new Date()
         }).where((0, drizzle_orm_1.eq)(schema_1.customers.id, cust.id));
+        // 6. Recalculate subsequent running balances for this customer
+        await this.recalculateCustomerLedger(cust.id);
         return updatedLedger;
+    }
+    static async recalculateCustomerLedger(customerId) {
+        const allEntries = await database_1.db.select().from(schema_1.ledgers)
+            .where((0, drizzle_orm_1.eq)(schema_1.ledgers.customer_id, customerId))
+            .orderBy(schema_1.ledgers.date, schema_1.ledgers.time, schema_1.ledgers.created_at);
+        let runningBalance = 0;
+        for (const entry of allEntries) {
+            runningBalance += (entry.amount - entry.payment_amount);
+            if (entry.running_balance !== runningBalance) {
+                await database_1.db.update(schema_1.ledgers)
+                    .set({ running_balance: runningBalance })
+                    .where((0, drizzle_orm_1.eq)(schema_1.ledgers.id, entry.id));
+            }
+        }
+        // Ensure customer balance matches
+        await database_1.db.update(schema_1.customers)
+            .set({ balance: runningBalance })
+            .where((0, drizzle_orm_1.eq)(schema_1.customers.id, customerId));
     }
 }
 exports.CrmService = CrmService;

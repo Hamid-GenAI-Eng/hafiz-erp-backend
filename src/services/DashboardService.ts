@@ -1,5 +1,5 @@
 import { db } from '../config/database';
-import { invoices, invoice_items, ledgers, supplier_ledgers, misc_expenses, customers, suppliers, products, diary } from '../models/schema';
+import { invoices, invoice_items, ledgers, supplier_ledgers, misc_expenses, customers, suppliers, products, diary, logistics_expenses } from '../models/schema';
 import { sql, eq, and, gte, lte, desc } from 'drizzle-orm';
 
 export class DashboardService {
@@ -16,8 +16,8 @@ export class DashboardService {
       startDate.setFullYear(now.getFullYear() - 1);
     }
 
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = now.toISOString().split("T")[0];
+    const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+    const endDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     // 1. Cash In
     const invoiceCashInRes = await db.select({ total: sql<number>`SUM(amount_paid)` })
@@ -51,7 +51,18 @@ export class DashboardService {
       .where(and(gte(misc_expenses.date, startDateStr), lte(misc_expenses.date, endDateStr)));
     const miscExp = miscExpRes[0]?.total || 0;
 
-    const totalCashOut = supplierCashOut + miscExp;
+    const logisticsExpRes = await db.select({ total: sql<number>`SUM(amount)` })
+      .from(logistics_expenses)
+      .where(and(eq(logistics_expenses.type, 'expense'), gte(logistics_expenses.date, startDateStr), lte(logistics_expenses.date, endDateStr)));
+    const logisticsExp = logisticsExpRes[0]?.total || 0;
+
+    const outsideLoaderFeesRes = await db.select({ total: sql<number>`SUM(outside_loader_fee)` })
+      .from(invoices)
+      .where(and(sql`${invoices.outside_loader_fee} > 0`, gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)));
+    const outsideLoaderFees = outsideLoaderFeesRes[0]?.total || 0;
+
+    const totalCashOut = supplierCashOut + miscExp + logisticsExp + outsideLoaderFees;
+    const totalExpensesForDashboard = miscExp + logisticsExp + outsideLoaderFees;
 
     // 3. Receivables & Payables
     const receivablesRes = await db.select({ total: sql<number>`SUM(balance)` })
@@ -137,7 +148,7 @@ export class DashboardService {
         cashIn: totalCashIn,
         cashOut: totalCashOut,
         netProfit,
-        expenses: miscExp,
+        expenses: totalExpensesForDashboard,
         receivable,
         payable,
         cementSold,

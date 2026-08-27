@@ -94,6 +94,7 @@ export class CrmService {
   static async createLedgerEntry(data: {
     id: string;
     customer_id: string;
+    invoice_id?: string;
     date: string;
     time?: string;
     type: string;
@@ -141,6 +142,7 @@ export class CrmService {
     time?: string;
     method?: string;
     reference?: string;
+    invoice_id?: string;
   }) {
     // Note: better-sqlite3 does not support async db.transaction callbacks.
     // Executing sequentially.
@@ -185,7 +187,31 @@ export class CrmService {
       updated_at: new Date()
     }).where(eq(customers.id, cust.id));
 
+    // 6. Recalculate subsequent running balances for this customer
+    await this.recalculateCustomerLedger(cust.id);
+
     return updatedLedger;
+  }
+
+  static async recalculateCustomerLedger(customerId: string) {
+    const allEntries = await db.select().from(ledgers)
+      .where(eq(ledgers.customer_id, customerId))
+      .orderBy(ledgers.date, ledgers.time, ledgers.created_at);
+
+    let runningBalance = 0;
+    for (const entry of allEntries) {
+      runningBalance += (entry.amount - entry.payment_amount);
+      if (entry.running_balance !== runningBalance) {
+        await db.update(ledgers)
+          .set({ running_balance: runningBalance })
+          .where(eq(ledgers.id, entry.id));
+      }
+    }
+    
+    // Ensure customer balance matches
+    await db.update(customers)
+      .set({ balance: runningBalance })
+      .where(eq(customers.id, customerId));
   }
 
 }

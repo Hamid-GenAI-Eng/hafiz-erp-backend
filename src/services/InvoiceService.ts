@@ -4,6 +4,7 @@ import {
   invoice_items,
   products,
   logistics_expenses,
+  ledgers
 } from "../models/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -143,11 +144,12 @@ export class InvoiceService {
       if (newInvoice.customer_id && newInvoice.status !== "Draft") {
         if (newInvoice.grand_total > 0 || newInvoice.amount_paid > 0) {
           await CrmService.createLedgerEntry({
-            id: randomUUID(),
-            customer_id: newInvoice.customer_id,
-            date: newInvoice.date,
-            time: newInvoice.time,
-            type: "charge",
+              id: randomUUID(),
+              customer_id: newInvoice.customer_id,
+              invoice_id: invoiceId,
+              date: newInvoice.date,
+              time: newInvoice.time,
+              type: "charge",
             amount: newInvoice.grand_total,
             payment_amount: newInvoice.amount_paid,
             description: `Invoice ${invoiceNumber}`,
@@ -190,7 +192,7 @@ export class InvoiceService {
     }
   }
 
-  static async reverseInvoiceEffects(invoice: any, isDelete: boolean = false) {
+  static async reverseInvoiceEffects(invoice: any, isDelete: boolean = false, isEdit: boolean = false) {
     const invoiceId = invoice.id;
 
     // 1. Add Stock Back
@@ -206,8 +208,8 @@ export class InvoiceService {
       }
     }
 
-    // 2. Reverse CRM Ledger
-    if (invoice.customer_id && invoice.status !== "Draft") {
+    // 2. Reverse CRM Ledger (Skip if this is just an edit, we will update it directly)
+    if (invoice.customer_id && invoice.status !== "Draft" && !isEdit) {
       if (invoice.grand_total > 0 || invoice.amount_paid > 0) {
         await CrmService.createLedgerEntry({
           id: randomUUID(),
@@ -219,6 +221,7 @@ export class InvoiceService {
           payment_amount: invoice.grand_total, // Reversing the charge (becomes a payment to correct it)
           description: `Reversal for Cancelled Invoice ${invoice.invoice_number}`,
           reference: invoice.reference || "",
+          invoice_id: invoiceId,
         });
       }
     }
@@ -296,8 +299,8 @@ export class InvoiceService {
       if (existing.status === "cancelled")
         throw new Error("Cannot edit a cancelled invoice");
 
-      // First, reverse the effects of the old invoice
-      await this.reverseInvoiceEffects(existing);
+      // First, reverse the effects of the old invoice (pass isEdit = true to skip Ledger reversal)
+      await this.reverseInvoiceEffects(existing, false, true);
 
       // Physically delete old invoice items and logistics expenses to insert new ones
       await db.delete(invoice_items).where(eq(invoice_items.invoice_id, id));
@@ -374,17 +377,37 @@ export class InvoiceService {
           updatedInvoice!.grand_total > 0 ||
           updatedInvoice!.amount_paid > 0
         ) {
-          await CrmService.createLedgerEntry({
-            id: randomUUID(),
-            customer_id: updatedInvoice!.customer_id!,
-            date: updatedInvoice!.date,
-            time: updatedInvoice!.time,
-            type: "charge",
-            amount: updatedInvoice!.grand_total,
-            payment_amount: updatedInvoice!.amount_paid,
-            description: `Invoice ${existing.invoice_number} (Edited)`,
-            reference: updatedInvoice!.reference || "",
-          });
+          // Find the existing ledger entry linked to this invoice
+          const existingLedgerArray = await db.select().from(ledgers)
+            .where(eq(ledgers.invoice_id, id))
+            .limit(1);
+            
+          if (existingLedgerArray && existingLedgerArray.length > 0) {
+            const existingLedger = existingLedgerArray[0];
+            await CrmService.updateLedgerEntry(existingLedger.id, existingLedger.version, {
+               amount: updatedInvoice!.grand_total,
+               payment_amount: updatedInvoice!.amount_paid,
+               description: `Invoice ${existing.invoice_number}`,
+               date: updatedInvoice!.date,
+               time: updatedInvoice!.time,
+               reference: updatedInvoice!.reference || "",
+               invoice_id: id
+            });
+          } else {
+             // If for some reason it didn't have an existing ledger, create one
+             await CrmService.createLedgerEntry({
+                id: randomUUID(),
+                customer_id: updatedInvoice!.customer_id!,
+                invoice_id: id,
+                date: updatedInvoice!.date,
+                time: updatedInvoice!.time,
+                type: "charge",
+                amount: updatedInvoice!.grand_total,
+                payment_amount: updatedInvoice!.amount_paid,
+                description: `Invoice ${existing.invoice_number}`,
+                reference: updatedInvoice!.reference || "",
+              });
+          }
         }
       }
 
