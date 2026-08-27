@@ -1,7 +1,5 @@
 import { drizzle as drizzlePg } from 'drizzle-orm/postgres-js';
-import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import postgres from 'postgres';
-import Database from 'better-sqlite3';
 import dotenv from 'dotenv';
 import path from 'path';
 import os from 'os';
@@ -18,6 +16,10 @@ if (DB_TYPE === 'postgres') {
   db = drizzlePg(queryClient);
   console.log('Connected to PostgreSQL (Supabase)');
 } else {
+  // Conditionally require to prevent Vercel crashes
+  const Database = require('better-sqlite3');
+  const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
+  
   const dbDir = path.join(os.homedir(), '.hafizerp');
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
