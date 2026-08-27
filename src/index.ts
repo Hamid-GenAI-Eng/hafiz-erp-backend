@@ -40,6 +40,10 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sync', syncRoutes);
 
+app.get('/', (req, res) => {
+  res.send('Hafiz ERP Backend is running! API is accessible at /api');
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
