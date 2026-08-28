@@ -20,11 +20,17 @@ if (DB_TYPE === 'postgres') {
   const Database = require('better-sqlite3');
   const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
   
-  const dbDir = path.join(os.homedir(), '.hafizerp');
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+  let dbPath = path.join(process.cwd(), 'sqlite.db');
+  
+  // Use home directory only if packaged as a binary (Tauri/pkg)
+  if (process.pkg || process.env.NODE_ENV === 'production' && !fs.existsSync(dbPath)) {
+    const dbDir = path.join(os.homedir(), '.hafizerp');
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+    dbPath = path.join(dbDir, 'sqlite.db');
   }
-  const dbPath = path.join(dbDir, 'sqlite.db');
+
   const sqlite = new Database(dbPath);
   db = drizzleSqlite(sqlite);
   console.log('Connected to local SQLite database at ' + dbPath);
