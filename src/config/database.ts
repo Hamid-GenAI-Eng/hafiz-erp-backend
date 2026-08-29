@@ -17,24 +17,30 @@ if (DB_TYPE === 'postgres') {
   db = drizzlePg(queryClient);
   console.log('Connected to PostgreSQL');
 } else {
-  // Conditionally require to prevent Vercel crashes
-  const Database = require('better-sqlite3');
-  const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
-  
-  let dbPath = path.join(process.cwd(), 'sqlite.db');
-  
-  // Use home directory only if packaged as a binary (Tauri/pkg)
-  if ((process as any).pkg || process.env.NODE_ENV === 'production' && !fs.existsSync(dbPath)) {
-    const dbDir = path.join(os.homedir(), '.hafizerp');
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
+  try {
+    // Hide require from bundler to prevent Vercel crashes
+    const moduleName = 'better-sqlite3';
+    const Database = require(moduleName);
+    const { drizzle: drizzleSqlite } = require('drizzle-orm/' + moduleName);
+    
+    let dbPath = path.join(process.cwd(), 'sqlite.db');
+    
+    // Use home directory only if packaged as a binary (Tauri/pkg)
+    if ((process as any).pkg || process.env.NODE_ENV === 'production' && !fs.existsSync(dbPath)) {
+      const dbDir = path.join(os.homedir(), '.hafizerp');
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      dbPath = path.join(dbDir, 'sqlite.db');
     }
-    dbPath = path.join(dbDir, 'sqlite.db');
-  }
 
-  const sqlite = new Database(dbPath);
-  db = drizzleSqlite(sqlite);
-  console.log('Connected to local SQLite database at ' + dbPath);
+    const sqlite = new Database(dbPath);
+    db = drizzleSqlite(sqlite);
+    console.log('Connected to local SQLite database at ' + dbPath);
+  } catch (error) {
+    console.error('Failed to initialize SQLite:', error);
+    db = null;
+  }
 }
 
 export { db };

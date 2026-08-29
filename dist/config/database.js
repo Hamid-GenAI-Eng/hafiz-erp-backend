@@ -11,12 +11,13 @@ const path_1 = __importDefault(require("path"));
 const os_1 = __importDefault(require("os"));
 const fs_1 = __importDefault(require("fs"));
 dotenv_1.default.config();
-exports.DB_TYPE = process.env.DB_TYPE || 'sqlite'; // 'sqlite' or 'postgres'
+exports.DB_TYPE = process.env.VERCEL ? 'postgres' : (process.env.DB_TYPE || 'sqlite'); // 'sqlite' or 'postgres'
 let db; // We will use a generic wrapper or cast as needed
 if (exports.DB_TYPE === 'postgres') {
-    const queryClient = (0, postgres_1.default)(process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/hafizerp');
+    const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/hafizerp';
+    const queryClient = (0, postgres_1.default)(connectionString, { ssl: connectionString.includes('supabase.com') ? 'require' : false });
     exports.db = db = (0, postgres_js_1.drizzle)(queryClient);
-    console.log('Connected to PostgreSQL (Supabase)');
+    console.log('Connected to PostgreSQL');
 }
 else {
     // Conditionally require to prevent Vercel crashes
