@@ -9,7 +9,8 @@ export class NotesService {
   }
 
   static async getById(id: string) {
-    const note = await db.select().from(diary_notes).where(eq(diary_notes.id, id)).get();
+    const results = await db.select().from(diary_notes).where(eq(diary_notes.id, id)).limit(1);
+    const note = results.length > 0 ? results[0] : null;
     if (!note) throw new Error("Note not found");
     return note;
   }
@@ -28,7 +29,8 @@ export class NotesService {
   }
 
   static async update(id: string, data: any) {
-    const existing = await db.select().from(diary_notes).where(eq(diary_notes.id, id)).get();
+    const results = await db.select().from(diary_notes).where(eq(diary_notes.id, id)).limit(1);
+    const existing = results.length > 0 ? results[0] : null;
     if (!existing) throw new Error("Note not found");
 
     await db.update(diary_notes).set({
@@ -43,7 +45,8 @@ export class NotesService {
   }
 
   static async remove(id: string) {
-    const existing = await db.select().from(diary_notes).where(eq(diary_notes.id, id)).get();
+    const results = await db.select().from(diary_notes).where(eq(diary_notes.id, id)).limit(1);
+    const existing = results.length > 0 ? results[0] : null;
     if (!existing) throw new Error("Note not found");
     await db.delete(diary_notes).where(eq(diary_notes.id, id));
   }

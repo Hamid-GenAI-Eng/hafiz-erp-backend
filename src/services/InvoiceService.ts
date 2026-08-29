@@ -65,7 +65,6 @@ export class InvoiceService {
   }
 
   static async createInvoice(data: any) {
-    await db.run(sql`BEGIN`);
     try {
       // Determine Invoice Number
       let invoiceNumber = data.invoice_number;
@@ -130,10 +129,11 @@ export class InvoiceService {
             item.quantity > 0
           ) {
             const prodId = String(item.product_id);
-            const updateResult = await db.run(
-              sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`,
+            const updateResult: any = await db.execute(
+              sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`
             );
-            if (updateResult.changes === 0) {
+            const rowsAffected = updateResult.changes !== undefined ? updateResult.changes : (updateResult.rowCount || updateResult.length || 0);
+            if (rowsAffected === 0) {
               throw new Error(`Insufficient stock for product ID ${prodId}`);
             }
           }
@@ -184,10 +184,8 @@ export class InvoiceService {
         }
       }
 
-      await db.run(sql`COMMIT`);
       return await this.getInvoiceById(invoiceId);
     } catch (err) {
-      await db.run(sql`ROLLBACK`);
       throw err;
     }
   }
@@ -202,7 +200,7 @@ export class InvoiceService {
         item.product_id !== "LABOUR" &&
         item.quantity > 0
       ) {
-        await db.run(
+        await db.execute(
           sql`UPDATE products SET current_qty = current_qty + ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`,
         );
       }
@@ -253,7 +251,6 @@ export class InvoiceService {
   }
 
   static async deleteInvoice(id: string) {
-    await db.run(sql`BEGIN`);
     try {
       const invoice = await this.getInvoiceById(id);
       if (!invoice) throw new Error("Invoice not found");
@@ -283,16 +280,13 @@ export class InvoiceService {
         })
         .where(eq(invoice_items.invoice_id, id));
 
-      await db.run(sql`COMMIT`);
       return true;
     } catch (err) {
-      await db.run(sql`ROLLBACK`);
       throw err;
     }
   }
 
   static async updateInvoice(id: string, data: any) {
-    await db.run(sql`BEGIN`);
     try {
       const existing = await this.getInvoiceById(id);
       if (!existing) throw new Error("Invoice not found");
@@ -361,10 +355,11 @@ export class InvoiceService {
             item.quantity > 0
           ) {
             const prodId = String(item.product_id);
-            const updateResult = await db.run(
-              sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`,
+            const updateResult: any = await db.execute(
+              sql`UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`
             );
-            if (updateResult.changes === 0) {
+            const rowsAffected = updateResult.changes !== undefined ? updateResult.changes : (updateResult.rowCount || updateResult.length || 0);
+            if (rowsAffected === 0) {
               throw new Error(`Insufficient stock for product ID ${prodId}`);
             }
           }
@@ -437,10 +432,8 @@ export class InvoiceService {
         }
       }
 
-      await db.run(sql`COMMIT`);
       return await this.getInvoiceById(id);
     } catch (err) {
-      await db.run(sql`ROLLBACK`);
       throw err;
     }
   }

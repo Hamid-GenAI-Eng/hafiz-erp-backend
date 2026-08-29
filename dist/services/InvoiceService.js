@@ -55,7 +55,6 @@ class InvoiceService {
         };
     }
     static async createInvoice(data) {
-        await database_1.db.run((0, drizzle_orm_1.sql) `BEGIN`);
         try {
             // Determine Invoice Number
             let invoiceNumber = data.invoice_number;
@@ -112,8 +111,9 @@ class InvoiceService {
                         item.product_id !== "LABOUR" &&
                         item.quantity > 0) {
                         const prodId = String(item.product_id);
-                        const updateResult = await database_1.db.run((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`);
-                        if (updateResult.changes === 0) {
+                        const updateResult = await database_1.db.execute((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`);
+                        const rowsAffected = updateResult.changes !== undefined ? updateResult.changes : (updateResult.rowCount || updateResult.length || 0);
+                        if (rowsAffected === 0) {
                             throw new Error(`Insufficient stock for product ID ${prodId}`);
                         }
                     }
@@ -159,11 +159,9 @@ class InvoiceService {
                     }
                 }
             }
-            await database_1.db.run((0, drizzle_orm_1.sql) `COMMIT`);
             return await this.getInvoiceById(invoiceId);
         }
         catch (err) {
-            await database_1.db.run((0, drizzle_orm_1.sql) `ROLLBACK`);
             throw err;
         }
     }
@@ -174,7 +172,7 @@ class InvoiceService {
             if (item.product_id &&
                 item.product_id !== "LABOUR" &&
                 item.quantity > 0) {
-                await database_1.db.run((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty + ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`);
+                await database_1.db.execute((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty + ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`);
             }
         }
         // 2. Reverse CRM Ledger (Skip if this is just an edit, we will update it directly)
@@ -220,7 +218,6 @@ class InvoiceService {
         }
     }
     static async deleteInvoice(id) {
-        await database_1.db.run((0, drizzle_orm_1.sql) `BEGIN`);
         try {
             const invoice = await this.getInvoiceById(id);
             if (!invoice)
@@ -247,16 +244,13 @@ class InvoiceService {
                 updated_at: new Date(),
             })
                 .where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
-            await database_1.db.run((0, drizzle_orm_1.sql) `COMMIT`);
             return true;
         }
         catch (err) {
-            await database_1.db.run((0, drizzle_orm_1.sql) `ROLLBACK`);
             throw err;
         }
     }
     static async updateInvoice(id, data) {
-        await database_1.db.run((0, drizzle_orm_1.sql) `BEGIN`);
         try {
             const existing = await this.getInvoiceById(id);
             if (!existing)
@@ -317,8 +311,9 @@ class InvoiceService {
                         item.product_id !== "LABOUR" &&
                         item.quantity > 0) {
                         const prodId = String(item.product_id);
-                        const updateResult = await database_1.db.run((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`);
-                        if (updateResult.changes === 0) {
+                        const updateResult = await database_1.db.execute((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`);
+                        const rowsAffected = updateResult.changes !== undefined ? updateResult.changes : (updateResult.rowCount || updateResult.length || 0);
+                        if (rowsAffected === 0) {
                             throw new Error(`Insufficient stock for product ID ${prodId}`);
                         }
                     }
@@ -384,11 +379,9 @@ class InvoiceService {
                     }
                 }
             }
-            await database_1.db.run((0, drizzle_orm_1.sql) `COMMIT`);
             return await this.getInvoiceById(id);
         }
         catch (err) {
-            await database_1.db.run((0, drizzle_orm_1.sql) `ROLLBACK`);
             throw err;
         }
     }

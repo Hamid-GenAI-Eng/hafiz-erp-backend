@@ -77,77 +77,71 @@ class SupplierService {
         return result;
     }
     static async createLedgerEntry(data) {
-        // Transaction wrapper to guarantee atomicity of ledger insertion and cache recalculation
-        // better-sqlite3 requires synchronous callbacks for transactions!
-        return database_1.db.transaction((tx) => {
-            const suppArray = tx.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, data.supplier_id)).limit(1).all();
-            if (!suppArray || suppArray.length === 0)
-                throw new Error('Supplier not found');
-            const supp = suppArray[0];
-            // Net change for supplier: amount (purchases/debit) increase owed balance, payment_amount (payments/credit) decrease owed balance
-            const netChange = data.amount - data.payment_amount;
-            const newRunningBalance = supp.balance_owed + netChange;
-            // 1. Insert Ledger
-            const entry = {
-                ...data,
-                running_balance: newRunningBalance,
-                created_at: new Date(),
-                updated_at: new Date()
-            };
-            tx.insert(schema_1.supplier_ledgers).values(entry).run();
-            // 2. Update Supplier Cache
-            tx.update(schema_1.suppliers).set({
-                balance_owed: newRunningBalance,
-                total_purchased: supp.total_purchased + data.amount,
-                total_paid: supp.total_paid + data.payment_amount,
-                version: supp.version + 1,
-                updated_at: new Date()
-            }).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, data.supplier_id)).run();
-            return entry;
-        });
+        // Executing sequentially to avoid async transaction conflicts between SQLite and Postgres
+        const suppArray = await database_1.db.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, data.supplier_id)).limit(1);
+        if (!suppArray || suppArray.length === 0)
+            throw new Error('Supplier not found');
+        const supp = suppArray[0];
+        // Net change for supplier: amount (purchases/debit) increase owed balance, payment_amount (payments/credit) decrease owed balance
+        const netChange = data.amount - data.payment_amount;
+        const newRunningBalance = supp.balance_owed + netChange;
+        // 1. Insert Ledger
+        const entry = {
+            ...data,
+            running_balance: newRunningBalance,
+            created_at: new Date(),
+            updated_at: new Date()
+        };
+        await database_1.db.insert(schema_1.supplier_ledgers).values(entry);
+        // 2. Update Supplier Cache
+        await database_1.db.update(schema_1.suppliers).set({
+            balance_owed: newRunningBalance,
+            total_purchased: supp.total_purchased + data.amount,
+            total_paid: supp.total_paid + data.payment_amount,
+            version: supp.version + 1,
+            updated_at: new Date()
+        }).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, data.supplier_id));
+        return entry;
     }
     static async updateLedgerEntry(ledgerId, incomingVersion, data) {
-        // Transaction wrapper for atomic update
-        // better-sqlite3 requires synchronous callbacks for transactions!
-        return database_1.db.transaction((tx) => {
-            // 1. Get existing ledger
-            const existingLedgerArray = tx.select().from(schema_1.supplier_ledgers).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId)).limit(1).all();
-            if (!existingLedgerArray || existingLedgerArray.length === 0)
-                throw new Error('Ledger entry not found');
-            const existingLedger = existingLedgerArray[0];
-            // OCC Check
-            if (existingLedger.version !== incomingVersion) {
-                throw new Error('409: Conflict - version mismatch');
-            }
-            // 2. Get supplier
-            const suppArray = tx.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, existingLedger.supplier_id)).limit(1).all();
-            if (!suppArray || suppArray.length === 0)
-                throw new Error('Supplier not found');
-            const supp = suppArray[0];
-            // 3. Calculate differences
-            const amountDiff = data.amount - existingLedger.amount;
-            const paymentDiff = data.payment_amount - existingLedger.payment_amount;
-            const netChangeDiff = amountDiff - paymentDiff;
-            const newRunningBalance = existingLedger.running_balance + netChangeDiff;
-            const newSupplierBalance = supp.balance_owed + netChangeDiff;
-            // 4. Update Ledger
-            const updatedLedger = {
-                ...data,
-                running_balance: newRunningBalance,
-                version: existingLedger.version + 1,
-                updated_at: new Date()
-            };
-            tx.update(schema_1.supplier_ledgers).set(updatedLedger).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId)).run();
-            // 5. Update Supplier
-            tx.update(schema_1.suppliers).set({
-                balance_owed: newSupplierBalance,
-                total_purchased: supp.total_purchased + amountDiff,
-                total_paid: supp.total_paid + paymentDiff,
-                version: supp.version + 1,
-                updated_at: new Date()
-            }).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, supp.id)).run();
-            return updatedLedger;
-        });
+        // Executing sequentially to avoid async transaction conflicts between SQLite and Postgres
+        // 1. Get existing ledger
+        const existingLedgerArray = await database_1.db.select().from(schema_1.supplier_ledgers).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId)).limit(1);
+        if (!existingLedgerArray || existingLedgerArray.length === 0)
+            throw new Error('Ledger entry not found');
+        const existingLedger = existingLedgerArray[0];
+        // OCC Check
+        if (existingLedger.version !== incomingVersion) {
+            throw new Error('409: Conflict - version mismatch');
+        }
+        // 2. Get supplier
+        const suppArray = await database_1.db.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, existingLedger.supplier_id)).limit(1);
+        if (!suppArray || suppArray.length === 0)
+            throw new Error('Supplier not found');
+        const supp = suppArray[0];
+        // 3. Calculate differences
+        const amountDiff = data.amount - existingLedger.amount;
+        const paymentDiff = data.payment_amount - existingLedger.payment_amount;
+        const netChangeDiff = amountDiff - paymentDiff;
+        const newRunningBalance = existingLedger.running_balance + netChangeDiff;
+        const newSupplierBalance = supp.balance_owed + netChangeDiff;
+        // 4. Update Ledger
+        const updatedLedger = {
+            ...data,
+            running_balance: newRunningBalance,
+            version: existingLedger.version + 1,
+            updated_at: new Date()
+        };
+        await database_1.db.update(schema_1.supplier_ledgers).set(updatedLedger).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId));
+        // 5. Update Supplier
+        await database_1.db.update(schema_1.suppliers).set({
+            balance_owed: newSupplierBalance,
+            total_purchased: supp.total_purchased + amountDiff,
+            total_paid: supp.total_paid + paymentDiff,
+            version: supp.version + 1,
+            updated_at: new Date()
+        }).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, supp.id));
+        return updatedLedger;
     }
 }
 exports.SupplierService = SupplierService;

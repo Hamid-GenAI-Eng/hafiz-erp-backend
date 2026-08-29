@@ -12,8 +12,8 @@ export const DB_TYPE = process.env.VERCEL ? 'postgres' : (process.env.DB_TYPE ||
 let db: any; // We will use a generic wrapper or cast as needed
 
 if (DB_TYPE === 'postgres') {
-  const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/hafizerp';
-  const queryClient = postgres(connectionString, { ssl: connectionString.includes('supabase.com') ? 'require' : false });
+  const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/hafizerp';
+  const queryClient = postgres(connectionString, { ssl: connectionString.includes('localhost') ? false : 'require' });
   db = drizzlePg(queryClient);
   console.log('Connected to PostgreSQL');
 } else {
