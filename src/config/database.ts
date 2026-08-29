@@ -7,14 +7,15 @@ import fs from 'fs';
 
 dotenv.config();
 
-export const DB_TYPE = process.env.DB_TYPE || 'sqlite'; // 'sqlite' or 'postgres'
+export const DB_TYPE = process.env.VERCEL ? 'postgres' : (process.env.DB_TYPE || 'sqlite'); // 'sqlite' or 'postgres'
 
 let db: any; // We will use a generic wrapper or cast as needed
 
 if (DB_TYPE === 'postgres') {
-  const queryClient = postgres(process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/hafizerp');
+  const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/hafizerp';
+  const queryClient = postgres(connectionString, { ssl: connectionString.includes('supabase.com') ? 'require' : false });
   db = drizzlePg(queryClient);
-  console.log('Connected to PostgreSQL (Supabase)');
+  console.log('Connected to PostgreSQL');
 } else {
   // Conditionally require to prevent Vercel crashes
   const Database = require('better-sqlite3');

@@ -43,7 +43,10 @@ export async function runSyncWorkerLogic() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ changes: localChanges })
       });
-      if (!pushRes.ok) throw new Error('Failed to push changes to remote');
+      if (!pushRes.ok) {
+        const errorText = await pushRes.text();
+        throw new Error(`Failed to push changes to remote: Status ${pushRes.status} - ${errorText}`);
+      }
     }
 
     // 3. Pull from remote

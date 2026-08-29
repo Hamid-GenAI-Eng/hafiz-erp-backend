@@ -45,6 +45,7 @@ export class SyncService {
         else rowData.updated_at = rowData.created_at;
 
         if (rowData.deleted_at) rowData.deleted_at = new Date(rowData.deleted_at);
+        else rowData.deleted_at = null;
 
         const existingArray = await db.select().from(table).where(eq(table.id, rowData.id)).limit(1);
         const existing = existingArray[0];
