@@ -5,9 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.db = exports.DB_TYPE = void 0;
 const postgres_js_1 = require("drizzle-orm/postgres-js");
-const better_sqlite3_1 = require("drizzle-orm/better-sqlite3");
 const postgres_1 = __importDefault(require("postgres"));
-const better_sqlite3_2 = __importDefault(require("better-sqlite3"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const os_1 = __importDefault(require("os"));
@@ -21,12 +19,19 @@ if (exports.DB_TYPE === 'postgres') {
     console.log('Connected to PostgreSQL (Supabase)');
 }
 else {
-    const dbDir = path_1.default.join(os_1.default.homedir(), '.hafizerp');
-    if (!fs_1.default.existsSync(dbDir)) {
-        fs_1.default.mkdirSync(dbDir, { recursive: true });
+    // Conditionally require to prevent Vercel crashes
+    const Database = require('better-sqlite3');
+    const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
+    let dbPath = path_1.default.join(process.cwd(), 'sqlite.db');
+    // Use home directory only if packaged as a binary (Tauri/pkg)
+    if (process.pkg || process.env.NODE_ENV === 'production' && !fs_1.default.existsSync(dbPath)) {
+        const dbDir = path_1.default.join(os_1.default.homedir(), '.hafizerp');
+        if (!fs_1.default.existsSync(dbDir)) {
+            fs_1.default.mkdirSync(dbDir, { recursive: true });
+        }
+        dbPath = path_1.default.join(dbDir, 'sqlite.db');
     }
-    const dbPath = path_1.default.join(dbDir, 'sqlite.db');
-    const sqlite = new better_sqlite3_2.default(dbPath);
-    exports.db = db = (0, better_sqlite3_1.drizzle)(sqlite);
+    const sqlite = new Database(dbPath);
+    exports.db = db = drizzleSqlite(sqlite);
     console.log('Connected to local SQLite database at ' + dbPath);
 }

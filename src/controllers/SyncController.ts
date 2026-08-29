@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { SyncService } from '../services/SyncService';
+import { runSyncWorkerLogic } from '../syncWorker';
 
 export class SyncController {
   static async pullChanges(req: Request, res: Response) {
@@ -43,6 +44,15 @@ export class SyncController {
       } else {
         res.json({ last_sync: null, status: 'never_synced' });
       }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  static async forceSync(req: Request, res: Response) {
+    try {
+      await runSyncWorkerLogic();
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -23,7 +23,7 @@ if (DB_TYPE === 'postgres') {
   let dbPath = path.join(process.cwd(), 'sqlite.db');
   
   // Use home directory only if packaged as a binary (Tauri/pkg)
-  if (process.pkg || process.env.NODE_ENV === 'production' && !fs.existsSync(dbPath)) {
+  if ((process as any).pkg || process.env.NODE_ENV === 'production' && !fs.existsSync(dbPath)) {
     const dbDir = path.join(os.homedir(), '.hafizerp');
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });

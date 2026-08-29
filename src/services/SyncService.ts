@@ -39,7 +39,11 @@ export class SyncService {
         // Convert dates if necessary (client sends ISO strings)
         const rowData = { ...clientRow };
         if (rowData.created_at) rowData.created_at = new Date(rowData.created_at);
+        else rowData.created_at = new Date();
+
         if (rowData.updated_at) rowData.updated_at = new Date(rowData.updated_at);
+        else rowData.updated_at = rowData.created_at;
+
         if (rowData.deleted_at) rowData.deleted_at = new Date(rowData.deleted_at);
 
         const existingArray = await db.select().from(table).where(eq(table.id, rowData.id)).limit(1);

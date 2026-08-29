@@ -7,7 +7,9 @@
   "pkg": {
     "scripts": "dist/**/*.js",
     "assets": [
-      ".env"
+      ".env",
+      "node_modules/drizzle-orm/**/*",
+      "node_modules/better-sqlite3/build/Release/better_sqlite3.node"
     ],
     "targets": [
       "node18-win-x64"
