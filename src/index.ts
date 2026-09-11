@@ -21,3 +21,5 @@ try {
 }
 
 export default app;
+
+// Trigger reload

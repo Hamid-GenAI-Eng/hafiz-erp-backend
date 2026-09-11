@@ -1,0 +1,1 @@
+const path = require('path'); const Database = require('better-sqlite3'); const { drizzle } = require('drizzle-orm/better-sqlite3'); const { migrate } = require('drizzle-orm/better-sqlite3/migrator'); const sqlite = new Database('sqlite.db'); const db = drizzle(sqlite); migrate(db, { migrationsFolder: './drizzle/sqlite' }); console.log('Migrated!');

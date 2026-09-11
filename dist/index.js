@@ -23,3 +23,4 @@ catch (error) {
     });
 }
 exports.default = app;
+// Trigger reload

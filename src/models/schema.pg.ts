@@ -16,9 +16,9 @@ export const customers = pgTable('customers', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('') // Soft delete
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at') // Soft delete
 });
 
 export const ledgers = pgTable('ledgers', {
@@ -41,9 +41,9 @@ export const ledgers = pgTable('ledgers', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('') // Soft delete
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at') // Soft delete
 });
 
 export const suppliers = pgTable('suppliers', {
@@ -66,9 +66,9 @@ export const suppliers = pgTable('suppliers', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('') // Soft delete
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at') // Soft delete
 });
 
 export const supplier_ledgers = pgTable('supplier_ledgers', {
@@ -90,9 +90,9 @@ export const supplier_ledgers = pgTable('supplier_ledgers', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('') // Soft delete
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at') // Soft delete
 });
 
 export const products = pgTable('products', {
@@ -117,9 +117,9 @@ export const products = pgTable('products', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('') // Soft delete
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at') // Soft delete
 });
 
 // ==========================================
@@ -134,9 +134,9 @@ export const settings = pgTable('settings', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const logistics_vehicles = pgTable('logistics_vehicles', {
@@ -149,9 +149,9 @@ export const logistics_vehicles = pgTable('logistics_vehicles', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const logistics_employees = pgTable('logistics_employees', {
@@ -165,9 +165,9 @@ export const logistics_employees = pgTable('logistics_employees', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const logistics_expenses = pgTable('logistics_expenses', {
@@ -183,9 +183,9 @@ export const logistics_expenses = pgTable('logistics_expenses', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const logistics_bucket_rentals = pgTable('logistics_bucket_rentals', {
@@ -205,9 +205,9 @@ export const logistics_bucket_rentals = pgTable('logistics_bucket_rentals', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const misc_expenses = pgTable('misc_expenses', {
@@ -222,9 +222,9 @@ export const misc_expenses = pgTable('misc_expenses', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const invoices = pgTable('invoices', {
@@ -252,9 +252,9 @@ export const invoices = pgTable('invoices', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const invoice_items = pgTable('invoice_items', {
@@ -271,9 +271,9 @@ export const invoice_items = pgTable('invoice_items', {
   // Sync Metadata
   device_id: text('device_id'),
   version: integer('version').default(1).notNull(),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp('')
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at')
 });
 
 export const diary = pgTable('diary', {
@@ -292,9 +292,9 @@ export const diary = pgTable('diary', {
   status: text('status').notNull().default('pending'),
   version: integer('version').notNull().default(1),
   device_id: text('device_id'),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
-  deleted_at: timestamp(''),
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
+  deleted_at: timestamp('deleted_at'),
 });
 
 export const diary_items = pgTable('diary_items', {
@@ -308,8 +308,8 @@ export const diary_items = pgTable('diary_items', {
   total_price: real('total_price').notNull().default(0),
   version: integer('version').notNull().default(1),
   device_id: text('device_id'),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
 });
 
 export const diary_notes = pgTable('diary_notes', {
@@ -319,8 +319,8 @@ export const diary_notes = pgTable('diary_notes', {
   date: text('date').notNull(),
   version: integer('version').notNull().default(1),
   device_id: text('device_id'),
-  created_at: timestamp('').notNull(),
-  updated_at: timestamp('').notNull(),
+  created_at: timestamp('created_at').notNull(),
+  updated_at: timestamp('updated_at').notNull(),
 });
 
 export const sync_logs = pgTable('sync_logs', {
