@@ -240,7 +240,7 @@ export class DiaryService {
           
           let details: any = {};
           try {
-            details = typeof existing.material_details === 'string' ? JSON.parse(existing.material_details) : existing.material_details;
+            details = (typeof existing.material_details === 'string' ? JSON.parse(existing.material_details) : existing.material_details) || {};
           } catch (e) {}
 
           if (details.items) allItems = allItems.concat(details.items);
@@ -403,16 +403,19 @@ export class DiaryService {
     let totalInternalShipping = 0;
     let totalOutsideLoader = 0;
 
+    console.log("Migrating to ledger. Data:", data);
     for (const id of entryIds) {
+       console.log("Processing entry ID:", id);
        const existingArr = await db.select().from(diary).where(eq(diary.id, id)).limit(1);
        const existing = existingArr.length > 0 ? existingArr[0] : null;
+       console.log("Found existing:", existing ? "YES, status: " + existing.status : "NO");
        if (existing && existing.status !== 'ledgered') {
           totalBill += existing.total_bill;
           totalPaid += existing.amount_paid;
           
           let details: any = {};
           try {
-            details = typeof existing.material_details === 'string' ? JSON.parse(existing.material_details) : existing.material_details;
+            details = (typeof existing.material_details === 'string' ? JSON.parse(existing.material_details) : existing.material_details) || {};
           } catch (e) {}
 
           if (details.items) allItems = allItems.concat(details.items);
@@ -426,6 +429,7 @@ export class DiaryService {
              version: existing.version + 1,
              updated_at: new Date()
           }).where(eq(diary.id, id));
+          console.log("Updated diary status to ledgered for", id);
        }
     }
 

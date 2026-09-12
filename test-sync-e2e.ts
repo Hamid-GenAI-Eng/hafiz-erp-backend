@@ -1,3 +1,4 @@
+process.env.REMOTE_URL = 'https://hafiz-erp-backend.vercel.app';
 const { randomUUID } = require('crypto');
 const Database = require('better-sqlite3');
 const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
@@ -58,8 +59,8 @@ async function run() {
   console.log('--- CONFLICT: LWW LOCAL WINS ---');
   const conflictId = randomUUID();
   const now = Date.now();
-  await sqliteDb.insert(sqliteSchema.products).values({ ...testProduct, id: conflictId, sku: 'CONF-1-' + Date.now(), name: 'Local Name', updated_at: new Date(now + 10000) });
-  await pgDb.insert(pgSchema.products).values({ ...testProduct, id: conflictId, sku: 'CONF-1-' + Date.now(), name: 'Remote Name', updated_at: new Date(now) });
+  await sqliteDb.insert(sqliteSchema.products).values({ ...testProduct, id: conflictId, sku: 'CONF-V-' + Date.now(), name: 'Local Name', updated_at: new Date(now + 10000) });
+  await pgDb.insert(pgSchema.products).values({ ...testProduct, id: conflictId, sku: 'CONF-V-' + Date.now(), name: 'Remote Name', updated_at: new Date(now) });
   await runSyncWorkerLogic();
   const conflictRes1 = await pgDb.select().from(pgSchema.products).where(eq(pgSchema.products.id, conflictId)).limit(1);
   console.log('Local Wins (Remote is updated to Local):', conflictRes1[0]?.name === 'Local Name');
@@ -67,8 +68,8 @@ async function run() {
   console.log('--- CONFLICT: LWW REMOTE WINS ---');
   const conflictId2 = randomUUID();
   const now2 = Date.now();
-  await sqliteDb.insert(sqliteSchema.products).values({ ...testProduct, id: conflictId2, sku: 'CONF-2-' + Date.now(), name: 'Local Name', updated_at: new Date(now2) });
-  await pgDb.insert(pgSchema.products).values({ ...testProduct, id: conflictId2, sku: 'CONF-2-' + Date.now(), name: 'Remote Name', updated_at: new Date(now2 + 10000) });
+  await sqliteDb.insert(sqliteSchema.products).values({ ...testProduct, id: conflictId2, sku: 'CONF-W-' + Date.now(), name: 'Local Name', updated_at: new Date(now2) });
+  await pgDb.insert(pgSchema.products).values({ ...testProduct, id: conflictId2, sku: 'CONF-W-' + Date.now(), name: 'Remote Name', updated_at: new Date(now2 + 10000) });
   await runSyncWorkerLogic();
   const conflictRes2 = await sqliteDb.select().from(sqliteSchema.products).where(eq(sqliteSchema.products.id, conflictId2)).limit(1);
   console.log('Remote Wins (Local is updated to Remote):', conflictRes2[0]?.name === 'Remote Name');
@@ -80,4 +81,5 @@ async function run() {
   process.exit(0);
 }
 run().catch(console.error);
+
 
