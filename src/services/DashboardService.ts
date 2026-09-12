@@ -27,7 +27,7 @@ export class DashboardService {
 
     const ledgerCashInRes = await db.select({ total: sql<number>`SUM(payment_amount)` })
       .from(ledgers)
-      .where(and(eq(ledgers.type, 'payment'), gte(ledgers.date, startDateStr), lte(ledgers.date, endDateStr)));
+      .where(and(sql`${ledgers.type} IN ('payment', 'advance')`, gte(ledgers.date, startDateStr), lte(ledgers.date, endDateStr)));
     const ledgerCashIn = ledgerCashInRes[0]?.total || 0;
 
     const diaryCashInRes = await db.select({ total: sql<number>`SUM(amount_paid)` })
