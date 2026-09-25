@@ -1,5 +1,5 @@
 import { eq, and, sql } from 'drizzle-orm';
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { customers, ledgers } from '../models/schema';
 
 export class CrmService {
@@ -10,7 +10,7 @@ export class CrmService {
 
   static async getAllCustomers() {
     // Only return active customers (deleted_at is null)
-    const result = await db.select()
+    const result = await getDb().select()
       .from(customers)
       .where(sql`${customers.deleted_at} IS NULL`)
       .orderBy(customers.name);
@@ -18,7 +18,7 @@ export class CrmService {
   }
 
   static async getCustomerById(id: string) {
-    const result = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
+    const result = await getDb().select().from(customers).where(eq(customers.id, id)).limit(1);
     if (!result || result.length === 0) return null;
     return result[0];
   }
@@ -40,7 +40,7 @@ export class CrmService {
       created_at: new Date(),
       updated_at: new Date()
     };
-    await db.insert(customers).values(newCustomer);
+    await getDb().insert(customers).values(newCustomer);
     return newCustomer;
   }
 
@@ -59,7 +59,7 @@ export class CrmService {
       updated_at: new Date()
     };
 
-    await db.update(customers).set(updatedData).where(eq(customers.id, id));
+    await getDb().update(customers).set(updatedData).where(eq(customers.id, id));
     return await this.getCustomerById(id);
   }
 
@@ -69,7 +69,7 @@ export class CrmService {
     if (!existing) throw new Error('Customer not found');
     if (existing.version !== incomingVersion) throw new Error('409: Conflict - version mismatch');
 
-    await db.update(customers).set({
+    await getDb().update(customers).set({
       status: 'inactive',
       deleted_at: new Date(),
       version: existing.version + 1,
@@ -84,7 +84,7 @@ export class CrmService {
   // ----------------------------------------------------
 
   static async getLedgerHistory(customerId: string) {
-    const result = await db.select()
+    const result = await getDb().select()
       .from(ledgers)
       .where(eq(ledgers.customer_id, customerId))
       .orderBy(ledgers.created_at);
@@ -104,9 +104,9 @@ export class CrmService {
     method?: string;
     reference?: string;
   }) {
-    // Note: better-sqlite3 does not support async callbacks in db.transaction. 
+    // Note: better-sqlite3 does not support async callbacks in getDb().transaction. 
     // Executing sequentially using db instead of tx.
-    const custArray = await db.select().from(customers).where(eq(customers.id, data.customer_id)).limit(1);
+    const custArray = await getDb().select().from(customers).where(eq(customers.id, data.customer_id)).limit(1);
     if (!custArray || custArray.length === 0) throw new Error('Customer not found');
     const cust = custArray[0];
 
@@ -120,10 +120,10 @@ export class CrmService {
       created_at: new Date(),
       updated_at: new Date()
     };
-    await db.insert(ledgers).values(entry);
+    await getDb().insert(ledgers).values(entry);
 
     // 2. Update Customer Cache
-    await db.update(customers).set({
+    await getDb().update(customers).set({
       balance: newRunningBalance,
       total_charged: cust.total_charged + data.amount,
       total_paid: cust.total_paid + data.payment_amount,
@@ -144,10 +144,10 @@ export class CrmService {
     reference?: string;
     invoice_id?: string;
   }) {
-    // Note: better-sqlite3 does not support async db.transaction callbacks.
+    // Note: better-sqlite3 does not support async getDb().transaction callbacks.
     // Executing sequentially.
     // 1. Get existing ledger
-    const existingLedgerArray = await db.select().from(ledgers).where(eq(ledgers.id, ledgerId)).limit(1);
+    const existingLedgerArray = await getDb().select().from(ledgers).where(eq(ledgers.id, ledgerId)).limit(1);
     if (!existingLedgerArray || existingLedgerArray.length === 0) throw new Error('Ledger entry not found');
     const existingLedger = existingLedgerArray[0];
 
@@ -157,7 +157,7 @@ export class CrmService {
     }
 
     // 2. Get customer
-    const custArray = await db.select().from(customers).where(eq(customers.id, existingLedger.customer_id)).limit(1);
+    const custArray = await getDb().select().from(customers).where(eq(customers.id, existingLedger.customer_id)).limit(1);
     if (!custArray || custArray.length === 0) throw new Error('Customer not found');
     const cust = custArray[0];
 
@@ -176,10 +176,10 @@ export class CrmService {
       version: existingLedger.version + 1,
       updated_at: new Date()
     };
-    await db.update(ledgers).set(updatedLedger).where(eq(ledgers.id, ledgerId));
+    await getDb().update(ledgers).set(updatedLedger).where(eq(ledgers.id, ledgerId));
 
     // 5. Update Customer
-    await db.update(customers).set({
+    await getDb().update(customers).set({
       balance: newCustomerBalance,
       total_charged: cust.total_charged + amountDiff,
       total_paid: cust.total_paid + paymentDiff,
@@ -194,7 +194,7 @@ export class CrmService {
   }
 
   static async recalculateCustomerLedger(customerId: string) {
-    const allEntries = await db.select().from(ledgers)
+    const allEntries = await getDb().select().from(ledgers)
       .where(eq(ledgers.customer_id, customerId))
       .orderBy(ledgers.date, ledgers.time, ledgers.created_at);
 
@@ -202,14 +202,14 @@ export class CrmService {
     for (const entry of allEntries) {
       runningBalance += (entry.amount - entry.payment_amount);
       if (entry.running_balance !== runningBalance) {
-        await db.update(ledgers)
+        await getDb().update(ledgers)
           .set({ running_balance: runningBalance })
           .where(eq(ledgers.id, entry.id));
       }
     }
     
     // Ensure customer balance matches
-    await db.update(customers)
+    await getDb().update(customers)
       .set({ balance: runningBalance })
       .where(eq(customers.id, customerId));
   }

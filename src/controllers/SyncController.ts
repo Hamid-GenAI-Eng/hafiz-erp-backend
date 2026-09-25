@@ -33,15 +33,15 @@ export class SyncController {
 
   static async getStatus(req: Request, res: Response) {
     try {
-      const { db } = require('../config/database');
-      if (!db) {
+      const { getDb } = require('../config/database');
+      if (!getDb()) {
         return res.json({ status: 'offline', online: false, pendingChanges: 0, lastSyncedAt: null });
       }
 
       const { sync_logs } = require('../models/schema');
       const { desc } = require('drizzle-orm');
 
-      const logArray = await db.select().from(sync_logs).orderBy(desc(sync_logs.last_sync)).limit(1);
+      const logArray = await getDb().select().from(sync_logs).orderBy(desc(sync_logs.last_sync)).limit(1);
       
       // Calculate pending changes by pulling local changes (mocking exact count for now)
       // Since this is just status, we can do a lightweight check or just return 0 if unoptimized.

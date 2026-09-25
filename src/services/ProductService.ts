@@ -1,11 +1,11 @@
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { products, suppliers, supplier_ledgers } from '../models/schema';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 export class ProductService {
   static async getAllProducts() {
-    const rows = await db.select({
+    const rows = await getDb().select({
       product: products,
       supplier_name: suppliers.company_name
     })
@@ -21,7 +21,7 @@ export class ProductService {
   }
 
   static async getProductById(id: string) {
-    const rows = await db.select({
+    const rows = await getDb().select({
       product: products,
       supplier_name: suppliers.company_name
     })
@@ -74,10 +74,10 @@ export class ProductService {
 
       // Executing sequentially to support both SQLite and Postgres natively without async transaction issues
       // 1. Insert product
-      await db.insert(products).values(newProduct);
+      await getDb().insert(products).values(newProduct);
 
       // 2. Get Supplier
-      const suppArray = await db.select().from(suppliers).where(eq(suppliers.id, newProduct.supplier_id)).limit(1);
+      const suppArray = await getDb().select().from(suppliers).where(eq(suppliers.id, newProduct.supplier_id)).limit(1);
       if (!suppArray || suppArray.length === 0) throw new Error('Supplier not found');
       const supp = suppArray[0];
 
@@ -100,10 +100,10 @@ export class ProductService {
         updated_at: new Date(),
         version: 1
       };
-      await db.insert(supplier_ledgers).values(entry);
+      await getDb().insert(supplier_ledgers).values(entry);
 
       // 4. Update Supplier Cache
-      await db.update(suppliers).set({
+      await getDb().update(suppliers).set({
         balance_owed: newRunningBalance,
         total_purchased: supp.total_purchased + amount,
         total_paid: supp.total_paid + payment_amount,
@@ -114,13 +114,13 @@ export class ProductService {
       return newProduct;
     } else {
       // Normal insertion without supplier ledger impact
-      await db.insert(products).values(newProduct);
+      await getDb().insert(products).values(newProduct);
       return newProduct;
     }
   }
 
   static async updateProduct(id: string, data: any, incomingVersion: number) {
-    const existingArray = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    const existingArray = await getDb().select().from(products).where(eq(products.id, id)).limit(1);
     if (!existingArray || existingArray.length === 0) throw new Error('Product not found');
     const existing = existingArray[0];
     if (existing.version !== incomingVersion) throw new Error('409: Conflict - version mismatch');
@@ -135,7 +135,7 @@ export class ProductService {
       updated_at: new Date()
     };
 
-    await db.update(products).set(updatedData).where(eq(products.id, id));
+    await getDb().update(products).set(updatedData).where(eq(products.id, id));
 
     if (qty_difference !== 0 && existing.supplier_id) {
       const costPrice = Number(safeData.cost_price || existing.cost_price || 0);
@@ -150,7 +150,7 @@ export class ProductService {
       }
 
       if (billAmount > 0 || paymentAmount > 0) {
-        await db.insert(supplier_ledgers).values({
+        await getDb().insert(supplier_ledgers).values({
           id: randomUUID(),
           supplier_id: existing.supplier_id,
           date: new Date().toISOString().split("T")[0],
@@ -165,7 +165,7 @@ export class ProductService {
         });
       }
     }
-    const finalArray = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    const finalArray = await getDb().select().from(products).where(eq(products.id, id)).limit(1);
     return finalArray[0];
   }
 
@@ -174,7 +174,7 @@ export class ProductService {
     if (!existing) throw new Error('Product not found');
     if (existing.version !== incomingVersion) throw new Error('409: Conflict - version mismatch');
 
-    await db.update(products).set({
+    await getDb().update(products).set({
       deleted_at: new Date(),
       version: existing.version + 1,
       updated_at: new Date()

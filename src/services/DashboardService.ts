@@ -1,4 +1,4 @@
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { invoices, invoice_items, ledgers, supplier_ledgers, misc_expenses, customers, suppliers, products, diary, logistics_expenses } from '../models/schema';
 import { sql, eq, and, gte, lte, desc } from 'drizzle-orm';
 
@@ -20,17 +20,17 @@ export class DashboardService {
     const endDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     // 1. Cash In
-    const invoiceCashInRes = await db.select({ total: sql<number>`SUM(amount_paid)` })
+    const invoiceCashInRes = await getDb().select({ total: sql<number>`SUM(amount_paid)` })
       .from(invoices)
-      .where(and(eq(invoices.status, 'active'), gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)));
+      .where(and(sql`${invoices.status} IN ('active', 'Completed')`, gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)));
     const invoiceCashIn = invoiceCashInRes[0]?.total || 0;
 
-    const ledgerCashInRes = await db.select({ total: sql<number>`SUM(payment_amount)` })
+    const ledgerCashInRes = await getDb().select({ total: sql<number>`SUM(payment_amount)` })
       .from(ledgers)
       .where(and(sql`${ledgers.type} IN ('payment', 'advance')`, gte(ledgers.date, startDateStr), lte(ledgers.date, endDateStr)));
     const ledgerCashIn = ledgerCashInRes[0]?.total || 0;
 
-    const diaryCashInRes = await db.select({ total: sql<number>`SUM(amount_paid)` })
+    const diaryCashInRes = await getDb().select({ total: sql<number>`SUM(amount_paid)` })
       .from(diary)
       .where(and(
          sql`${diary.status} IN ('pending', 'cleared')`, 
@@ -41,22 +41,22 @@ export class DashboardService {
     const totalCashIn = invoiceCashIn + ledgerCashIn + diaryCashIn;
 
     // 2. Cash Out
-    const supplierCashOutRes = await db.select({ total: sql<number>`SUM(payment_amount)` })
+    const supplierCashOutRes = await getDb().select({ total: sql<number>`SUM(payment_amount)` })
       .from(supplier_ledgers)
       .where(and(gte(supplier_ledgers.date, startDateStr), lte(supplier_ledgers.date, endDateStr)));
     const supplierCashOut = supplierCashOutRes[0]?.total || 0;
 
-    const miscExpRes = await db.select({ total: sql<number>`SUM(amount)` })
+    const miscExpRes = await getDb().select({ total: sql<number>`SUM(amount)` })
       .from(misc_expenses)
       .where(and(gte(misc_expenses.date, startDateStr), lte(misc_expenses.date, endDateStr)));
     const miscExp = miscExpRes[0]?.total || 0;
 
-    const logisticsExpRes = await db.select({ total: sql<number>`SUM(amount)` })
+    const logisticsExpRes = await getDb().select({ total: sql<number>`SUM(amount)` })
       .from(logistics_expenses)
       .where(and(eq(logistics_expenses.type, 'expense'), gte(logistics_expenses.date, startDateStr), lte(logistics_expenses.date, endDateStr)));
     const logisticsExp = logisticsExpRes[0]?.total || 0;
 
-    const outsideLoaderFeesRes = await db.select({ total: sql<number>`SUM(outside_loader_fee)` })
+    const outsideLoaderFeesRes = await getDb().select({ total: sql<number>`SUM(outside_loader_fee)` })
       .from(invoices)
       .where(and(sql`${invoices.outside_loader_fee} > 0`, gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)));
     const outsideLoaderFees = outsideLoaderFeesRes[0]?.total || 0;
@@ -65,25 +65,25 @@ export class DashboardService {
     const totalExpensesForDashboard = miscExp + logisticsExp + outsideLoaderFees;
 
     // 3. Receivables & Payables
-    const receivablesRes = await db.select({ total: sql<number>`SUM(balance)` })
+    const receivablesRes = await getDb().select({ total: sql<number>`SUM(balance)` })
       .from(customers)
       .where(sql`${customers.balance} > 0`);
     const receivable = receivablesRes[0]?.total || 0;
 
-    const payablesRes = await db.select({ total: sql<number>`SUM(balance_owed)` })
+    const payablesRes = await getDb().select({ total: sql<number>`SUM(balance_owed)` })
       .from(suppliers)
       .where(sql`${suppliers.balance_owed} > 0`);
     const payable = payablesRes[0]?.total || 0;
 
     // 4. Quantities Sold
-    const itemsRes = await db.select({
+    const itemsRes = await getDb().select({
       category: products.category,
       qty: sql<number>`SUM(${invoice_items.quantity})`
     })
     .from(invoice_items)
     .innerJoin(invoices, eq(invoice_items.invoice_id, invoices.id))
     .innerJoin(products, eq(invoice_items.product_id, products.id))
-    .where(and(eq(invoices.status, 'active'), gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)))
+    .where(and(sql`${invoices.status} IN ('active', 'Completed')`, gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)))
     .groupBy(products.category);
 
     let cementSold = 0;
@@ -102,7 +102,7 @@ export class DashboardService {
     const netProfit = totalCashIn - totalCashOut;
 
     // 6. Recent Invoices
-    const recentInvoices = await db.select({
+    const recentInvoices = await getDb().select({
       id: invoices.invoice_number,
       customer_name: sql<string>`COALESCE(${customers.name}, ${invoices.walkin_name}, 'Walk-in')`,
       amount: invoices.grand_total,
@@ -115,7 +115,7 @@ export class DashboardService {
     .limit(5);
 
     // 7. Recent Transactions
-    const recentTransactions = await db.select({
+    const recentTransactions = await getDb().select({
       date: ledgers.date,
       method: ledgers.method,
       amount: sql<number>`CASE WHEN ${ledgers.amount} > 0 THEN ${ledgers.amount} ELSE ${ledgers.payment_amount} END`,
@@ -131,11 +131,11 @@ export class DashboardService {
     if (range === 'daily') {
       chartData.push({ name: startDateStr, revenue: totalCashIn, expenses: totalCashOut });
     } else {
-      const revGroup = await db.select({
+      const revGroup = await getDb().select({
         date: invoices.date,
         total: sql<number>`SUM(amount_paid)`
       }).from(invoices)
-      .where(and(eq(invoices.status, 'active'), gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)))
+      .where(and(sql`${invoices.status} IN ('active', 'Completed')`, gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)))
       .groupBy(invoices.date);
 
       for (const row of revGroup) {

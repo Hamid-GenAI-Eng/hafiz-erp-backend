@@ -1,4 +1,4 @@
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { products, customers, suppliers, diary } from '../models/schema';
 import { sql, eq } from 'drizzle-orm';
 
@@ -7,7 +7,7 @@ export class NotificationService {
     const alerts: any[] = [];
 
     // 1. Low Stock Alerts
-    const lowStockQuery = await db.select({
+    const lowStockQuery = await getDb().select({
       count: sql<number>`COUNT(*)`
     })
     .from(products)
@@ -26,7 +26,7 @@ export class NotificationService {
     }
 
     // 2. Customer Dues
-    const customerDuesQuery = await db.select({
+    const customerDuesQuery = await getDb().select({
       count: sql<number>`COUNT(*)`,
       total: sql<number>`SUM(${customers.balance})`
     })
@@ -48,7 +48,7 @@ export class NotificationService {
     }
 
     // 3. Supplier Payables
-    const supplierPayablesQuery = await db.select({
+    const supplierPayablesQuery = await getDb().select({
       count: sql<number>`COUNT(*)`,
       total: sql<number>`SUM(${suppliers.balance_owed})`
     })
@@ -70,7 +70,7 @@ export class NotificationService {
     }
 
     // 4. Pending Diary Entries
-    const pendingDiaryQuery = await db.select({
+    const pendingDiaryQuery = await getDb().select({
       count: sql<number>`COUNT(*)`
     })
     .from(diary)

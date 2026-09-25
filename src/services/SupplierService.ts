@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { suppliers, supplier_ledgers } from '../models/schema';
 
 export class SupplierService {
@@ -10,7 +10,7 @@ export class SupplierService {
 
   static async getAllSuppliers() {
     // Only return active suppliers (deleted_at is null)
-    const result = await db.select()
+    const result = await getDb().select()
       .from(suppliers)
       .where(sql`${suppliers.deleted_at} IS NULL`)
       .orderBy(suppliers.company_name);
@@ -18,7 +18,7 @@ export class SupplierService {
   }
 
   static async getSupplierById(id: string) {
-    const result = await db.select().from(suppliers).where(eq(suppliers.id, id)).limit(1);
+    const result = await getDb().select().from(suppliers).where(eq(suppliers.id, id)).limit(1);
     if (!result || result.length === 0) return null;
     return result[0];
   }
@@ -44,7 +44,7 @@ export class SupplierService {
       created_at: new Date(),
       updated_at: new Date()
     };
-    await db.insert(suppliers).values(newSupplier);
+    await getDb().insert(suppliers).values(newSupplier);
     return newSupplier;
   }
 
@@ -63,7 +63,7 @@ export class SupplierService {
       updated_at: new Date()
     };
 
-    await db.update(suppliers).set(updatedData).where(eq(suppliers.id, id));
+    await getDb().update(suppliers).set(updatedData).where(eq(suppliers.id, id));
     return await this.getSupplierById(id);
   }
 
@@ -73,7 +73,7 @@ export class SupplierService {
     if (!existing) throw new Error('Supplier not found');
     if (existing.version !== incomingVersion) throw new Error('409: Conflict - version mismatch');
 
-    await db.update(suppliers).set({
+    await getDb().update(suppliers).set({
       status: 'inactive',
       deleted_at: new Date(),
       version: existing.version + 1,
@@ -88,7 +88,7 @@ export class SupplierService {
   // ----------------------------------------------------
 
   static async getLedgerHistory(supplierId: string) {
-    const result = await db.select()
+    const result = await getDb().select()
       .from(supplier_ledgers)
       .where(eq(supplier_ledgers.supplier_id, supplierId))
       .orderBy(supplier_ledgers.created_at);
@@ -108,7 +108,7 @@ export class SupplierService {
     reference?: string;
   }) {
     // Executing sequentially to avoid async transaction conflicts between SQLite and Postgres
-    const suppArray = await db.select().from(suppliers).where(eq(suppliers.id, data.supplier_id)).limit(1);
+    const suppArray = await getDb().select().from(suppliers).where(eq(suppliers.id, data.supplier_id)).limit(1);
     if (!suppArray || suppArray.length === 0) throw new Error('Supplier not found');
     const supp = suppArray[0];
 
@@ -123,10 +123,10 @@ export class SupplierService {
       created_at: new Date(),
       updated_at: new Date()
     };
-    await db.insert(supplier_ledgers).values(entry);
+    await getDb().insert(supplier_ledgers).values(entry);
 
     // 2. Update Supplier Cache
-    await db.update(suppliers).set({
+    await getDb().update(suppliers).set({
       balance_owed: newRunningBalance,
       total_purchased: supp.total_purchased + data.amount,
       total_paid: supp.total_paid + data.payment_amount,
@@ -148,7 +148,7 @@ export class SupplierService {
   }) {
     // Executing sequentially to avoid async transaction conflicts between SQLite and Postgres
     // 1. Get existing ledger
-    const existingLedgerArray = await db.select().from(supplier_ledgers).where(eq(supplier_ledgers.id, ledgerId)).limit(1);
+    const existingLedgerArray = await getDb().select().from(supplier_ledgers).where(eq(supplier_ledgers.id, ledgerId)).limit(1);
     if (!existingLedgerArray || existingLedgerArray.length === 0) throw new Error('Ledger entry not found');
     const existingLedger = existingLedgerArray[0];
 
@@ -158,7 +158,7 @@ export class SupplierService {
     }
 
     // 2. Get supplier
-    const suppArray = await db.select().from(suppliers).where(eq(suppliers.id, existingLedger.supplier_id)).limit(1);
+    const suppArray = await getDb().select().from(suppliers).where(eq(suppliers.id, existingLedger.supplier_id)).limit(1);
     if (!suppArray || suppArray.length === 0) throw new Error('Supplier not found');
     const supp = suppArray[0];
 
@@ -177,10 +177,10 @@ export class SupplierService {
       version: existingLedger.version + 1,
       updated_at: new Date()
     };
-    await db.update(supplier_ledgers).set(updatedLedger).where(eq(supplier_ledgers.id, ledgerId));
+    await getDb().update(supplier_ledgers).set(updatedLedger).where(eq(supplier_ledgers.id, ledgerId));
 
     // 5. Update Supplier
-    await db.update(suppliers).set({
+    await getDb().update(suppliers).set({
       balance_owed: newSupplierBalance,
       total_purchased: supp.total_purchased + amountDiff,
       total_paid: supp.total_paid + paymentDiff,

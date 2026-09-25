@@ -1,4 +1,4 @@
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import * as schema from '../models/schema';
 import { eq, gt } from 'drizzle-orm';
 
@@ -17,7 +17,7 @@ export class SyncService {
       const table = (schema as any)[tableName];
       if (!table) continue;
 
-      const rows = await db.select().from(table).where(gt(table.updated_at, lastSync));
+      const rows = await getDb().select().from(table).where(gt(table.updated_at, lastSync));
       changes[tableName] = rows;
     }
     
@@ -47,11 +47,11 @@ export class SyncService {
         if (rowData.deleted_at) rowData.deleted_at = new Date(rowData.deleted_at);
         else rowData.deleted_at = null;
 
-        const existingArray = await db.select().from(table).where(eq(table.id, rowData.id)).limit(1);
+        const existingArray = await getDb().select().from(table).where(eq(table.id, rowData.id)).limit(1);
         const existing = existingArray[0];
 
         if (!existing) {
-          await db.insert(table).values(rowData);
+          await getDb().insert(table).values(rowData);
           inserted++;
         } else {
           // Last-Write-Wins (LWW) or version-based conflict resolution
@@ -59,10 +59,48 @@ export class SyncService {
           const serverTime = existing.updated_at ? existing.updated_at.getTime() : 0;
 
           if (clientTime > serverTime || rowData.version > existing.version) {
-            await db.update(table).set(rowData).where(eq(table.id, rowData.id));
+            await getDb().update(table).set(rowData).where(eq(table.id, rowData.id));
             updated++;
           } else {
             ignored++;
+          }
+        }
+
+        // Handle Legacy Items payload for older remote servers or migrations
+        if (tableName === 'invoices' && clientRow.items) {
+          try {
+            let legacyItems: any[] = [];
+            if (typeof clientRow.items === 'string') {
+              try { legacyItems = JSON.parse(clientRow.items); } catch (e) {}
+            } else if (Array.isArray(clientRow.items)) {
+              legacyItems = clientRow.items;
+            }
+
+            if (legacyItems.length > 0) {
+              const { invoice_items } = require('../models/schema');
+              const { randomUUID } = require('crypto');
+              
+              // Clear existing local items for this invoice to prevent duplicates
+              await getDb().delete(invoice_items).where(eq(invoice_items.invoice_id, rowData.id));
+
+              for (const item of legacyItems) {
+                await getDb().insert(invoice_items).values({
+                  id: item.id || randomUUID(),
+                  invoice_id: rowData.id,
+                  product_id: item.product_id || null,
+                  description: item.description || '',
+                  quantity: item.quantity || 0,
+                  unit_price: item.unit_price || 0,
+                  discount: item.discount || 0,
+                  total_price: item.total_price || 0,
+                  version: 1,
+                  created_at: new Date(),
+                  updated_at: new Date()
+                });
+              }
+            }
+          } catch (err) {
+            console.error(`Error migrating legacy items for invoice ${rowData.id}:`, err);
           }
         }
       }

@@ -7,7 +7,7 @@ const drizzle_orm_1 = require("drizzle-orm");
 const crypto_1 = require("crypto");
 class ProductService {
     static async getAllProducts() {
-        const rows = await database_1.db.select({
+        const rows = await (0, database_1.getDb)().select({
             product: schema_1.products,
             supplier_name: schema_1.suppliers.company_name
         })
@@ -21,7 +21,7 @@ class ProductService {
         }));
     }
     static async getProductById(id) {
-        const rows = await database_1.db.select({
+        const rows = await (0, database_1.getDb)().select({
             product: schema_1.products,
             supplier_name: schema_1.suppliers.company_name
         })
@@ -69,9 +69,9 @@ class ProductService {
             const payment_amount = data.amount_paid || 0;
             // Executing sequentially to support both SQLite and Postgres natively without async transaction issues
             // 1. Insert product
-            await database_1.db.insert(schema_1.products).values(newProduct);
+            await (0, database_1.getDb)().insert(schema_1.products).values(newProduct);
             // 2. Get Supplier
-            const suppArray = await database_1.db.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, newProduct.supplier_id)).limit(1);
+            const suppArray = await (0, database_1.getDb)().select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, newProduct.supplier_id)).limit(1);
             if (!suppArray || suppArray.length === 0)
                 throw new Error('Supplier not found');
             const supp = suppArray[0];
@@ -93,9 +93,9 @@ class ProductService {
                 updated_at: new Date(),
                 version: 1
             };
-            await database_1.db.insert(schema_1.supplier_ledgers).values(entry);
+            await (0, database_1.getDb)().insert(schema_1.supplier_ledgers).values(entry);
             // 4. Update Supplier Cache
-            await database_1.db.update(schema_1.suppliers).set({
+            await (0, database_1.getDb)().update(schema_1.suppliers).set({
                 balance_owed: newRunningBalance,
                 total_purchased: supp.total_purchased + amount,
                 total_paid: supp.total_paid + payment_amount,
@@ -106,12 +106,12 @@ class ProductService {
         }
         else {
             // Normal insertion without supplier ledger impact
-            await database_1.db.insert(schema_1.products).values(newProduct);
+            await (0, database_1.getDb)().insert(schema_1.products).values(newProduct);
             return newProduct;
         }
     }
     static async updateProduct(id, data, incomingVersion) {
-        const existingArray = await database_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).limit(1);
+        const existingArray = await (0, database_1.getDb)().select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).limit(1);
         if (!existingArray || existingArray.length === 0)
             throw new Error('Product not found');
         const existing = existingArray[0];
@@ -124,7 +124,7 @@ class ProductService {
             version: existing.version + 1,
             updated_at: new Date()
         };
-        await database_1.db.update(schema_1.products).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.products.id, id));
+        await (0, database_1.getDb)().update(schema_1.products).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.products.id, id));
         if (qty_difference !== 0 && existing.supplier_id) {
             const costPrice = Number(safeData.cost_price || existing.cost_price || 0);
             let billAmount = 0;
@@ -136,7 +136,7 @@ class ProductService {
                 paymentAmount = Math.abs(qty_difference) * costPrice;
             }
             if (billAmount > 0 || paymentAmount > 0) {
-                await database_1.db.insert(schema_1.supplier_ledgers).values({
+                await (0, database_1.getDb)().insert(schema_1.supplier_ledgers).values({
                     id: (0, crypto_1.randomUUID)(),
                     supplier_id: existing.supplier_id,
                     date: new Date().toISOString().split("T")[0],
@@ -151,7 +151,7 @@ class ProductService {
                 });
             }
         }
-        const finalArray = await database_1.db.select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).limit(1);
+        const finalArray = await (0, database_1.getDb)().select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, id)).limit(1);
         return finalArray[0];
     }
     static async deleteProduct(id, incomingVersion) {
@@ -160,7 +160,7 @@ class ProductService {
             throw new Error('Product not found');
         if (existing.version !== incomingVersion)
             throw new Error('409: Conflict - version mismatch');
-        await database_1.db.update(schema_1.products).set({
+        await (0, database_1.getDb)().update(schema_1.products).set({
             deleted_at: new Date(),
             version: existing.version + 1,
             updated_at: new Date()

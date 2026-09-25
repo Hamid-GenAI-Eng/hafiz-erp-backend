@@ -8,6 +8,20 @@
       "when": 1789050425765,
       "tag": "0000_early_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789741544553,
+      "tag": "0001_flimsy_doctor_strange",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789742859971,
+      "tag": "0002_chemical_salo",
+      "breakpoints": true
     }
   ]
 }

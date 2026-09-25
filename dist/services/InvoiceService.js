@@ -8,7 +8,7 @@ const crypto_1 = require("crypto");
 const CrmService_1 = require("./CrmService");
 class InvoiceService {
     static async getNextInvoiceNumber() {
-        const result = await database_1.db
+        const result = await (0, database_1.getDb)()
             .select({ invoice_number: schema_1.invoices.invoice_number })
             .from(schema_1.invoices)
             .where((0, drizzle_orm_1.sql) `invoice_number LIKE 'INV-%'`)
@@ -22,25 +22,25 @@ class InvoiceService {
         return "INV-1001";
     }
     static async getAllInvoices() {
-        return await database_1.db
+        return await (0, database_1.getDb)()
             .select()
             .from(schema_1.invoices)
             .where((0, drizzle_orm_1.sql) `${schema_1.invoices.deleted_at} IS NULL`)
             .orderBy((0, drizzle_orm_1.sql) `${schema_1.invoices.date} DESC, ${schema_1.invoices.time} DESC`);
     }
     static async getInvoiceById(id) {
-        const invoiceResult = await database_1.db
+        const invoiceResult = await (0, database_1.getDb)()
             .select()
             .from(schema_1.invoices)
             .where((0, drizzle_orm_1.eq)(schema_1.invoices.id, id))
             .limit(1);
         if (!invoiceResult || invoiceResult.length === 0)
             return null;
-        const items = await database_1.db
+        const items = await (0, database_1.getDb)()
             .select()
             .from(schema_1.invoice_items)
             .where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
-        const logistics = await database_1.db
+        const logistics = await (0, database_1.getDb)()
             .select()
             .from(schema_1.logistics_expenses)
             .where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id));
@@ -56,6 +56,24 @@ class InvoiceService {
     }
     static async createInvoice(data) {
         try {
+            // 0. Pre-validate Stock to prevent partial failures
+            if (data.items && data.items.length > 0) {
+                const requiredStock = new Map();
+                for (const item of data.items) {
+                    if (item.product_id && item.product_id !== "LABOUR" && item.quantity > 0) {
+                        const prodId = String(item.product_id);
+                        requiredStock.set(prodId, (requiredStock.get(prodId) || 0) + item.quantity);
+                    }
+                }
+                for (const [prodId, qty] of requiredStock.entries()) {
+                    const prodResult = await (0, database_1.getDb)().select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, prodId)).limit(1);
+                    if (!prodResult || prodResult.length === 0)
+                        throw new Error(`Product not found: ${prodId}`);
+                    if (prodResult[0].current_qty < qty) {
+                        throw new Error(`Insufficient stock for product ID ${prodId}`);
+                    }
+                }
+            }
             // Determine Invoice Number
             let invoiceNumber = data.invoice_number;
             if (!invoiceNumber || invoiceNumber.startsWith("TMP-")) {
@@ -86,12 +104,12 @@ class InvoiceService {
                 created_at: new Date(),
                 updated_at: new Date(),
             };
-            await database_1.db.insert(schema_1.invoices).values(newInvoice);
+            await (0, database_1.getDb)().insert(schema_1.invoices).values(newInvoice);
             // 2. Insert Items and Deduct Stock
             if (data.items && data.items.length > 0) {
                 for (const item of data.items) {
                     const itemId = (0, crypto_1.randomUUID)();
-                    await database_1.db.insert(schema_1.invoice_items).values({
+                    await (0, database_1.getDb)().insert(schema_1.invoice_items).values({
                         id: itemId,
                         invoice_id: invoiceId,
                         product_id: item.product_id && item.product_id !== "LABOUR"
@@ -106,16 +124,12 @@ class InvoiceService {
                         created_at: new Date(),
                         updated_at: new Date(),
                     });
-                    // Deduct stock with concurrency guard (ignore custom items or LABOUR)
+                    // Deduct stock (we already verified it will succeed)
                     if (item.product_id &&
                         item.product_id !== "LABOUR" &&
                         item.quantity > 0) {
                         const prodId = String(item.product_id);
-                        const updateResult = await database_1.db.execute((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`);
-                        const rowsAffected = updateResult.changes !== undefined ? updateResult.changes : (updateResult.rowCount || updateResult.length || 0);
-                        if (rowsAffected === 0) {
-                            throw new Error(`Insufficient stock for product ID ${prodId}`);
-                        }
+                        await (0, database_1.getDb)().update(schema_1.products).set({ current_qty: (0, drizzle_orm_1.sql) `current_qty - ${item.quantity}`, updated_at: new Date() }).where((0, drizzle_orm_1.eq)(schema_1.products.id, prodId));
                     }
                 }
             }
@@ -142,7 +156,7 @@ class InvoiceService {
                 newInvoice.status !== "Draft") {
                 for (const loader of data.loaders) {
                     if (loader.vehicle_id && loader.fee > 0) {
-                        await database_1.db.insert(schema_1.logistics_expenses).values({
+                        await (0, database_1.getDb)().insert(schema_1.logistics_expenses).values({
                             id: (0, crypto_1.randomUUID)(),
                             vehicle_id: String(loader.vehicle_id),
                             invoice_id: invoiceId,
@@ -172,7 +186,7 @@ class InvoiceService {
             if (item.product_id &&
                 item.product_id !== "LABOUR" &&
                 item.quantity > 0) {
-                await database_1.db.execute((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty + ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${item.product_id}`);
+                await (0, database_1.getDb)().update(schema_1.products).set({ current_qty: (0, drizzle_orm_1.sql) `current_qty + ${item.quantity}`, updated_at: new Date() }).where((0, drizzle_orm_1.eq)(schema_1.products.id, item.product_id));
             }
         }
         // 2. Reverse CRM Ledger (Skip if this is just an edit, we will update it directly)
@@ -194,13 +208,13 @@ class InvoiceService {
         }
         // 3. Reverse Logistics Income (Only when deleting/cancelling, not editing)
         if (invoice.status !== "Draft" && isDelete) {
-            const logisticsIncomes = await database_1.db
+            const logisticsIncomes = await (0, database_1.getDb)()
                 .select()
                 .from(schema_1.logistics_expenses)
                 .where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, invoiceId));
             for (const income of logisticsIncomes) {
                 // Insert offsetting expense instead of soft-delete to maintain audit trail
-                await database_1.db.insert(schema_1.logistics_expenses).values({
+                await (0, database_1.getDb)().insert(schema_1.logistics_expenses).values({
                     id: (0, crypto_1.randomUUID)(),
                     vehicle_id: income.vehicle_id,
                     invoice_id: invoiceId, // Linking reversal to the same invoice
@@ -227,7 +241,7 @@ class InvoiceService {
             // Reverse effects
             await this.reverseInvoiceEffects(invoice, true);
             // Soft delete invoice
-            await database_1.db
+            await (0, database_1.getDb)()
                 .update(schema_1.invoices)
                 .set({
                 status: "cancelled",
@@ -237,7 +251,7 @@ class InvoiceService {
             })
                 .where((0, drizzle_orm_1.eq)(schema_1.invoices.id, id));
             // Soft delete items
-            await database_1.db
+            await (0, database_1.getDb)()
                 .update(schema_1.invoice_items)
                 .set({
                 deleted_at: new Date(),
@@ -257,13 +271,45 @@ class InvoiceService {
                 throw new Error("Invoice not found");
             if (existing.status === "cancelled")
                 throw new Error("Cannot edit a cancelled invoice");
+            // 0. Pre-validate Stock to prevent partial failures
+            if (data.items && data.items.length > 0) {
+                const stockDiffs = new Map();
+                // Add back old stock virtually
+                if (existing.items && existing.items.length > 0) {
+                    for (const oldItem of existing.items) {
+                        if (oldItem.product_id && oldItem.product_id !== "LABOUR" && oldItem.quantity > 0) {
+                            const prodId = String(oldItem.product_id);
+                            stockDiffs.set(prodId, (stockDiffs.get(prodId) || 0) + oldItem.quantity);
+                        }
+                    }
+                }
+                // Subtract new stock virtually
+                for (const newItem of data.items) {
+                    if (newItem.product_id && newItem.product_id !== "LABOUR" && newItem.quantity > 0) {
+                        const prodId = String(newItem.product_id);
+                        stockDiffs.set(prodId, (stockDiffs.get(prodId) || 0) - newItem.quantity);
+                    }
+                }
+                // Check if any product needs more stock than what's available
+                for (const [prodId, diff] of stockDiffs.entries()) {
+                    if (diff < 0) {
+                        const requiredExtra = Math.abs(diff);
+                        const prodResult = await (0, database_1.getDb)().select().from(schema_1.products).where((0, drizzle_orm_1.eq)(schema_1.products.id, prodId)).limit(1);
+                        if (!prodResult || prodResult.length === 0)
+                            throw new Error(`Product not found: ${prodId}`);
+                        if (prodResult[0].current_qty < requiredExtra) {
+                            throw new Error(`Insufficient stock for product ID ${prodId}`);
+                        }
+                    }
+                }
+            }
             // First, reverse the effects of the old invoice (pass isEdit = true to skip Ledger reversal)
             await this.reverseInvoiceEffects(existing, false, true);
             // Physically delete old invoice items and logistics expenses to insert new ones
-            await database_1.db.delete(schema_1.invoice_items).where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
-            await database_1.db.delete(schema_1.logistics_expenses).where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id));
+            await (0, database_1.getDb)().delete(schema_1.invoice_items).where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
+            await (0, database_1.getDb)().delete(schema_1.logistics_expenses).where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id));
             // Update main invoice
-            await database_1.db
+            await (0, database_1.getDb)()
                 .update(schema_1.invoices)
                 .set({
                 customer_id: data.customer_id ? String(data.customer_id) : null,
@@ -291,7 +337,7 @@ class InvoiceService {
             if (data.items && data.items.length > 0) {
                 for (const item of data.items) {
                     const itemId = (0, crypto_1.randomUUID)();
-                    await database_1.db.insert(schema_1.invoice_items).values({
+                    await (0, database_1.getDb)().insert(schema_1.invoice_items).values({
                         id: itemId,
                         invoice_id: id,
                         product_id: item.product_id && item.product_id !== "LABOUR"
@@ -306,16 +352,12 @@ class InvoiceService {
                         created_at: new Date(),
                         updated_at: new Date(),
                     });
-                    // Deduct stock with concurrency guard (ignore custom items or LABOUR)
+                    // Deduct stock (we already verified it will succeed)
                     if (item.product_id &&
                         item.product_id !== "LABOUR" &&
                         item.quantity > 0) {
                         const prodId = String(item.product_id);
-                        const updateResult = await database_1.db.execute((0, drizzle_orm_1.sql) `UPDATE products SET current_qty = current_qty - ${item.quantity}, updated_at = ${new Date().toISOString()} WHERE id = ${prodId} AND current_qty >= ${item.quantity}`);
-                        const rowsAffected = updateResult.changes !== undefined ? updateResult.changes : (updateResult.rowCount || updateResult.length || 0);
-                        if (rowsAffected === 0) {
-                            throw new Error(`Insufficient stock for product ID ${prodId}`);
-                        }
+                        await (0, database_1.getDb)().update(schema_1.products).set({ current_qty: (0, drizzle_orm_1.sql) `current_qty - ${item.quantity}`, updated_at: new Date() }).where((0, drizzle_orm_1.eq)(schema_1.products.id, prodId));
                     }
                 }
             }
@@ -324,7 +366,7 @@ class InvoiceService {
                 if (updatedInvoice.grand_total > 0 ||
                     updatedInvoice.amount_paid > 0) {
                     // Find the existing ledger entry linked to this invoice
-                    const existingLedgerArray = await database_1.db.select().from(schema_1.ledgers)
+                    const existingLedgerArray = await (0, database_1.getDb)().select().from(schema_1.ledgers)
                         .where((0, drizzle_orm_1.eq)(schema_1.ledgers.invoice_id, id))
                         .limit(1);
                     if (existingLedgerArray && existingLedgerArray.length > 0) {
@@ -362,7 +404,7 @@ class InvoiceService {
                 updatedInvoice.status !== "Draft") {
                 for (const loader of data.loaders) {
                     if (loader.vehicle_id && loader.fee > 0) {
-                        await database_1.db.insert(schema_1.logistics_expenses).values({
+                        await (0, database_1.getDb)().insert(schema_1.logistics_expenses).values({
                             id: (0, crypto_1.randomUUID)(),
                             vehicle_id: String(loader.vehicle_id),
                             invoice_id: id,

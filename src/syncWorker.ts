@@ -1,13 +1,18 @@
-import { DB_TYPE, db } from './config/database';
+import { DB_TYPE, getDb } from './config/database';
 import { SyncService } from './services/SyncService';
 import { sync_logs } from './models/schema';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
-const REMOTE_URL = process.env.REMOTE_URL || 'https://hafiz-erp-backend.vercel.app';
+const REMOTE_URL = process.env.REMOTE_URL || 'https://hafizerp.com';
 
 async function getLastSyncTime(): Promise<Date> {
-  const logArray = await db.select().from(sync_logs).orderBy(desc(sync_logs.last_sync)).limit(1);
+  const logArray = await getDb()
+    .select()
+    .from(sync_logs)
+    .where(eq(sync_logs.status, 'success'))
+    .orderBy(desc(sync_logs.last_sync))
+    .limit(1);
   if (logArray.length > 0) {
     return new Date(logArray[0].last_sync);
   }
@@ -15,7 +20,7 @@ async function getLastSyncTime(): Promise<Date> {
 }
 
 async function updateLastSyncTime(date: Date, status: string, error?: string) {
-  await db.insert(sync_logs).values({
+  await getDb().insert(sync_logs).values({
     id: randomUUID(),
     last_sync: date,
     status,
@@ -50,8 +55,17 @@ export async function runSyncWorkerLogic() {
     }
 
     // 3. Pull from remote
-    const pullRes = await fetch(`${REMOTE_URL}/api/sync/pull?lastSync=${lastSync.toISOString()}`);
-    if (!pullRes.ok) throw new Error('Failed to pull changes from remote');
+    const pullUrl = `${REMOTE_URL}/api/sync/pull?lastSync=${lastSync.toISOString()}`;
+    console.log(`[SYNC DEBUG] Fetching URL: ${pullUrl}`);
+    const pullRes = await fetch(pullUrl);
+    
+    console.log(`[SYNC DEBUG] Status: ${pullRes.status}`);
+    
+    if (!pullRes.ok) {
+      const errText = await pullRes.text();
+      console.error(`[SYNC DEBUG] Error Body: ${errText}`);
+      throw new Error(`Failed to pull changes from remote: ${pullRes.status} - ${errText}`);
+    }
     const remoteChanges = await pullRes.json();
 
     // Check if we actually have any remote changes
@@ -79,8 +93,8 @@ export async function runSyncWorkerLogic() {
 }
 
 export function startSyncWorker() {
-  if (DB_TYPE !== 'sqlite') {
-    console.log('Sync Worker: Disabled (Running in Postgres/Remote mode)');
+  if (DB_TYPE !== 'sqlite' || process.env.IS_CLOUD === 'true') {
+    console.log('Sync Worker: Disabled (Running in Cloud/Remote mode)');
     return;
   }
   

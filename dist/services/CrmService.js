@@ -10,14 +10,14 @@ class CrmService {
     // ----------------------------------------------------
     static async getAllCustomers() {
         // Only return active customers (deleted_at is null)
-        const result = await database_1.db.select()
+        const result = await (0, database_1.getDb)().select()
             .from(schema_1.customers)
             .where((0, drizzle_orm_1.sql) `${schema_1.customers.deleted_at} IS NULL`)
             .orderBy(schema_1.customers.name);
         return result;
     }
     static async getCustomerById(id) {
-        const result = await database_1.db.select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, id)).limit(1);
+        const result = await (0, database_1.getDb)().select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, id)).limit(1);
         if (!result || result.length === 0)
             return null;
         return result[0];
@@ -31,7 +31,7 @@ class CrmService {
             created_at: new Date(),
             updated_at: new Date()
         };
-        await database_1.db.insert(schema_1.customers).values(newCustomer);
+        await (0, database_1.getDb)().insert(schema_1.customers).values(newCustomer);
         return newCustomer;
     }
     static async updateCustomer(id, data, incomingVersion) {
@@ -48,7 +48,7 @@ class CrmService {
             version: existing.version + 1,
             updated_at: new Date()
         };
-        await database_1.db.update(schema_1.customers).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.customers.id, id));
+        await (0, database_1.getDb)().update(schema_1.customers).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.customers.id, id));
         return await this.getCustomerById(id);
     }
     static async deleteCustomer(id, incomingVersion) {
@@ -58,7 +58,7 @@ class CrmService {
             throw new Error('Customer not found');
         if (existing.version !== incomingVersion)
             throw new Error('409: Conflict - version mismatch');
-        await database_1.db.update(schema_1.customers).set({
+        await (0, database_1.getDb)().update(schema_1.customers).set({
             status: 'inactive',
             deleted_at: new Date(),
             version: existing.version + 1,
@@ -70,16 +70,16 @@ class CrmService {
     // Ledgers
     // ----------------------------------------------------
     static async getLedgerHistory(customerId) {
-        const result = await database_1.db.select()
+        const result = await (0, database_1.getDb)().select()
             .from(schema_1.ledgers)
             .where((0, drizzle_orm_1.eq)(schema_1.ledgers.customer_id, customerId))
             .orderBy(schema_1.ledgers.created_at);
         return result;
     }
     static async createLedgerEntry(data) {
-        // Note: better-sqlite3 does not support async callbacks in db.transaction. 
+        // Note: better-sqlite3 does not support async callbacks in getDb().transaction. 
         // Executing sequentially using db instead of tx.
-        const custArray = await database_1.db.select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, data.customer_id)).limit(1);
+        const custArray = await (0, database_1.getDb)().select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, data.customer_id)).limit(1);
         if (!custArray || custArray.length === 0)
             throw new Error('Customer not found');
         const cust = custArray[0];
@@ -92,9 +92,9 @@ class CrmService {
             created_at: new Date(),
             updated_at: new Date()
         };
-        await database_1.db.insert(schema_1.ledgers).values(entry);
+        await (0, database_1.getDb)().insert(schema_1.ledgers).values(entry);
         // 2. Update Customer Cache
-        await database_1.db.update(schema_1.customers).set({
+        await (0, database_1.getDb)().update(schema_1.customers).set({
             balance: newRunningBalance,
             total_charged: cust.total_charged + data.amount,
             total_paid: cust.total_paid + data.payment_amount,
@@ -104,10 +104,10 @@ class CrmService {
         return entry;
     }
     static async updateLedgerEntry(ledgerId, incomingVersion, data) {
-        // Note: better-sqlite3 does not support async db.transaction callbacks.
+        // Note: better-sqlite3 does not support async getDb().transaction callbacks.
         // Executing sequentially.
         // 1. Get existing ledger
-        const existingLedgerArray = await database_1.db.select().from(schema_1.ledgers).where((0, drizzle_orm_1.eq)(schema_1.ledgers.id, ledgerId)).limit(1);
+        const existingLedgerArray = await (0, database_1.getDb)().select().from(schema_1.ledgers).where((0, drizzle_orm_1.eq)(schema_1.ledgers.id, ledgerId)).limit(1);
         if (!existingLedgerArray || existingLedgerArray.length === 0)
             throw new Error('Ledger entry not found');
         const existingLedger = existingLedgerArray[0];
@@ -116,7 +116,7 @@ class CrmService {
             throw new Error('409: Conflict - version mismatch');
         }
         // 2. Get customer
-        const custArray = await database_1.db.select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, existingLedger.customer_id)).limit(1);
+        const custArray = await (0, database_1.getDb)().select().from(schema_1.customers).where((0, drizzle_orm_1.eq)(schema_1.customers.id, existingLedger.customer_id)).limit(1);
         if (!custArray || custArray.length === 0)
             throw new Error('Customer not found');
         const cust = custArray[0];
@@ -133,9 +133,9 @@ class CrmService {
             version: existingLedger.version + 1,
             updated_at: new Date()
         };
-        await database_1.db.update(schema_1.ledgers).set(updatedLedger).where((0, drizzle_orm_1.eq)(schema_1.ledgers.id, ledgerId));
+        await (0, database_1.getDb)().update(schema_1.ledgers).set(updatedLedger).where((0, drizzle_orm_1.eq)(schema_1.ledgers.id, ledgerId));
         // 5. Update Customer
-        await database_1.db.update(schema_1.customers).set({
+        await (0, database_1.getDb)().update(schema_1.customers).set({
             balance: newCustomerBalance,
             total_charged: cust.total_charged + amountDiff,
             total_paid: cust.total_paid + paymentDiff,
@@ -147,20 +147,20 @@ class CrmService {
         return updatedLedger;
     }
     static async recalculateCustomerLedger(customerId) {
-        const allEntries = await database_1.db.select().from(schema_1.ledgers)
+        const allEntries = await (0, database_1.getDb)().select().from(schema_1.ledgers)
             .where((0, drizzle_orm_1.eq)(schema_1.ledgers.customer_id, customerId))
             .orderBy(schema_1.ledgers.date, schema_1.ledgers.time, schema_1.ledgers.created_at);
         let runningBalance = 0;
         for (const entry of allEntries) {
             runningBalance += (entry.amount - entry.payment_amount);
             if (entry.running_balance !== runningBalance) {
-                await database_1.db.update(schema_1.ledgers)
+                await (0, database_1.getDb)().update(schema_1.ledgers)
                     .set({ running_balance: runningBalance })
                     .where((0, drizzle_orm_1.eq)(schema_1.ledgers.id, entry.id));
             }
         }
         // Ensure customer balance matches
-        await database_1.db.update(schema_1.customers)
+        await (0, database_1.getDb)().update(schema_1.customers)
             .set({ balance: runningBalance })
             .where((0, drizzle_orm_1.eq)(schema_1.customers.id, customerId));
     }

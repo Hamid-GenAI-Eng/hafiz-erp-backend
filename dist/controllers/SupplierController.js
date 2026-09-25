@@ -32,6 +32,7 @@ class SupplierController {
             // Auto-generate UUID and Supplier Number
             const newId = (0, crypto_1.randomUUID)();
             const supplierNumber = `SUPP-${Math.floor(Math.random() * 100000)}`;
+            const openingBalance = req.body.opening_balance ? Number(req.body.opening_balance) : 0;
             const data = {
                 id: newId,
                 supplier_number: supplierNumber,
@@ -43,9 +44,29 @@ class SupplierController {
                 category: req.body.category || 'Building',
                 tax_id: req.body.tax_id,
                 status: req.body.status || 'active',
-                balance_owed: req.body.opening_balance || 0
+                balance_owed: 0 // Initialize at 0, ledger entry will update it
             };
-            const supplier = await SupplierService_1.SupplierService.createSupplier(data);
+            let supplier = await SupplierService_1.SupplierService.createSupplier(data);
+            // Create an opening balance ledger entry if requested
+            if (openingBalance !== 0) {
+                const isDebt = openingBalance > 0;
+                await SupplierService_1.SupplierService.createLedgerEntry({
+                    id: (0, crypto_1.randomUUID)(),
+                    supplier_id: newId,
+                    date: new Date().toISOString().split('T')[0],
+                    time: new Date().toISOString().split('T')[1].slice(0, 5),
+                    type: isDebt ? 'purchase' : 'payment',
+                    amount: isDebt ? openingBalance : 0,
+                    payment_amount: isDebt ? 0 : Math.abs(openingBalance),
+                    description: 'Opening Balance',
+                    method: 'System',
+                    reference: 'OPENING-BAL'
+                });
+                // Fetch updated supplier to return
+                const updatedSupplier = await SupplierService_1.SupplierService.getSupplierById(newId);
+                if (updatedSupplier)
+                    supplier = updatedSupplier;
+            }
             res.status(201).json(supplier);
         }
         catch (err) {

@@ -15,6 +15,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import syncRoutes from './routes/syncRoutes';
 import { startSyncWorker } from './syncWorker';
+import { initializeDatabase, getDb, DB_TYPE } from './config/database';
 
 dotenv.config();
 
@@ -45,14 +46,28 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  try {
+    const db = getDb(); // Verify database is accessible
+    res.json({ status: 'ok', database: DB_TYPE, dbReady: true, timestamp: new Date().toISOString() });
+  } catch (e: any) {
+    res.status(503).json({ status: 'error', database: DB_TYPE, dbReady: false, error: e.message });
+  }
 });
 
-if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`Backend server running on http://localhost:${PORT}`);
-    startSyncWorker();
-  });
+if (process.env.VERCEL) {
+  // Initialize synchronously for serverless environment
+  initializeDatabase();
+} else {
+  try {
+    initializeDatabase();
+    app.listen(PORT, () => {
+      console.log(`Backend server running on http://localhost:${PORT}`);
+      startSyncWorker();
+    });
+  } catch (err) {
+    console.error("FATAL: Failed to initialize database on startup:", err);
+    process.exit(1);
+  }
 }
 
 export default app;

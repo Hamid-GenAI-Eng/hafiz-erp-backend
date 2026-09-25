@@ -1,19 +1,19 @@
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { misc_expenses } from '../models/schema';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 export class MiscService {
   static async getAllExpenses() {
-    return await db.select().from(misc_expenses).where(sql`${misc_expenses.deleted_at} IS NULL`).orderBy(sql`${misc_expenses.date} DESC`);
+    return await getDb().select().from(misc_expenses).where(sql`${misc_expenses.deleted_at} IS NULL`).orderBy(sql`${misc_expenses.date} DESC`);
   }
 
   static async getExpenseById(id: string) {
-    return (await db.select().from(misc_expenses).where(eq(misc_expenses.id, id)).limit(1))[0];
+    return (await getDb().select().from(misc_expenses).where(eq(misc_expenses.id, id)).limit(1))[0];
   }
 
   static async createExpense(data: any) {
-    const inserted = await db.insert(misc_expenses).values({
+    const inserted = await getDb().insert(misc_expenses).values({
       id: randomUUID(),
       date: data.date,
       time: data.time || new Date().toISOString().split('T')[1].slice(0, 5),
@@ -33,7 +33,7 @@ export class MiscService {
     if (!existing) throw new Error('404: Expense not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    const updated = await db.update(misc_expenses).set({
+    const updated = await getDb().update(misc_expenses).set({
       date: data.date,
       time: data.time,
       category: data.category,
@@ -51,7 +51,7 @@ export class MiscService {
     if (!existing) throw new Error('404: Expense not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    await db.update(misc_expenses)
+    await getDb().update(misc_expenses)
       .set({ deleted_at: new Date(), updated_at: new Date(), version: existing.version + 1 })
       .where(eq(misc_expenses.id, id));
     return true;

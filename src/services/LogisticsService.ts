@@ -1,4 +1,4 @@
-import { db } from '../config/database';
+import { getDb } from '../config/database';
 import { logistics_vehicles, logistics_employees, logistics_expenses, logistics_bucket_rentals, invoices } from '../models/schema';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
@@ -8,16 +8,16 @@ export class LogisticsService {
   // VEHICLES
   // ----------------------------------------------------
   static async getAllVehicles() {
-    return await db.select().from(logistics_vehicles).where(sql`${logistics_vehicles.deleted_at} IS NULL`);
+    return await getDb().select().from(logistics_vehicles).where(sql`${logistics_vehicles.deleted_at} IS NULL`);
   }
 
   static async getVehicleById(id: string) {
-    const res = await db.select().from(logistics_vehicles).where(eq(logistics_vehicles.id, id)).limit(1);
+    const res = await getDb().select().from(logistics_vehicles).where(eq(logistics_vehicles.id, id)).limit(1);
     return res[0] || null;
   }
 
   static async createVehicle(data: any) {
-    const inserted = await db.insert(logistics_vehicles).values({
+    const inserted = await getDb().insert(logistics_vehicles).values({
       id: randomUUID(),
       name: data.name,
       plate_number: data.plate_number,
@@ -35,7 +35,7 @@ export class LogisticsService {
     if (!existing) throw new Error('404: Vehicle not found');
     if (existing.version !== version) throw new Error('409: Conflict: Vehicle was modified by another device');
 
-    const updated = await db.update(logistics_vehicles).set({
+    const updated = await getDb().update(logistics_vehicles).set({
       name: data.name,
       plate_number: data.plate_number,
       ownership: data.ownership,
@@ -51,7 +51,7 @@ export class LogisticsService {
     if (!existing) throw new Error('404: Vehicle not found');
     if (existing.version !== version) throw new Error('409: Conflict: Vehicle was modified by another device');
 
-    await db.update(logistics_vehicles).set({
+    await getDb().update(logistics_vehicles).set({
       deleted_at: new Date(),
       version: existing.version + 1,
       updated_at: new Date()
@@ -62,15 +62,15 @@ export class LogisticsService {
   // EMPLOYEES
   // ----------------------------------------------------
   static async getAllEmployees() {
-    return await db.select().from(logistics_employees).where(sql`${logistics_employees.deleted_at} IS NULL`);
+    return await getDb().select().from(logistics_employees).where(sql`${logistics_employees.deleted_at} IS NULL`);
   }
 
   static async getEmployeeById(id: string) {
-    return (await db.select().from(logistics_employees).where(eq(logistics_employees.id, id)).limit(1))[0];
+    return (await getDb().select().from(logistics_employees).where(eq(logistics_employees.id, id)).limit(1))[0];
   }
 
   static async createEmployee(data: any) {
-    const inserted = await db.insert(logistics_employees).values({
+    const inserted = await getDb().insert(logistics_employees).values({
       id: randomUUID(),
       name: data.name,
       role: data.role,
@@ -85,11 +85,11 @@ export class LogisticsService {
   }
 
   static async updateEmployee(id: string, data: any, version: number) {
-    const existing = (await db.select().from(logistics_employees).where(eq(logistics_employees.id, id)).limit(1))[0];
+    const existing = (await getDb().select().from(logistics_employees).where(eq(logistics_employees.id, id)).limit(1))[0];
     if (!existing) throw new Error('404: Employee not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    const updated = await db.update(logistics_employees).set({
+    const updated = await getDb().update(logistics_employees).set({
       name: data.name,
       role: data.role,
       phone: data.phone,
@@ -102,11 +102,11 @@ export class LogisticsService {
   }
 
   static async deleteEmployee(id: string, version: number) {
-    const existing = (await db.select().from(logistics_employees).where(eq(logistics_employees.id, id)).limit(1))[0];
+    const existing = (await getDb().select().from(logistics_employees).where(eq(logistics_employees.id, id)).limit(1))[0];
     if (!existing) throw new Error('404: Employee not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    await db.update(logistics_employees).set({
+    await getDb().update(logistics_employees).set({
       deleted_at: new Date(),
       version: existing.version + 1,
       updated_at: new Date()
@@ -117,15 +117,15 @@ export class LogisticsService {
   // EXPENSES
   // ----------------------------------------------------
   static async getAllExpenses() {
-    return await db.select().from(logistics_expenses).where(sql`${logistics_expenses.deleted_at} IS NULL`).orderBy(sql`${logistics_expenses.date} DESC`);
+    return await getDb().select().from(logistics_expenses).where(sql`${logistics_expenses.deleted_at} IS NULL`).orderBy(sql`${logistics_expenses.date} DESC`);
   }
 
   static async getExpenseById(id: string) {
-    return (await db.select().from(logistics_expenses).where(eq(logistics_expenses.id, id)).limit(1))[0];
+    return (await getDb().select().from(logistics_expenses).where(eq(logistics_expenses.id, id)).limit(1))[0];
   }
 
   static async createExpense(data: any) {
-    const inserted = await db.insert(logistics_expenses).values({
+    const inserted = await getDb().insert(logistics_expenses).values({
       id: randomUUID(),
       vehicle_id: data.vehicle_id,
       date: data.date,
@@ -141,11 +141,11 @@ export class LogisticsService {
   }
 
   static async updateExpense(id: string, data: any, version: number) {
-    const existing = (await db.select().from(logistics_expenses).where(eq(logistics_expenses.id, id)).limit(1))[0];
+    const existing = (await getDb().select().from(logistics_expenses).where(eq(logistics_expenses.id, id)).limit(1))[0];
     if (!existing) throw new Error('404: Expense not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    const updated = await db.update(logistics_expenses).set({
+    const updated = await getDb().update(logistics_expenses).set({
       vehicle_id: data.vehicle_id,
       date: data.date,
       amount: data.amount,
@@ -159,11 +159,11 @@ export class LogisticsService {
   }
 
   static async deleteExpense(id: string, version: number) {
-    const existing = (await db.select().from(logistics_expenses).where(eq(logistics_expenses.id, id)).limit(1))[0];
+    const existing = (await getDb().select().from(logistics_expenses).where(eq(logistics_expenses.id, id)).limit(1))[0];
     if (!existing) throw new Error('404: Expense not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    await db.update(logistics_expenses).set({
+    await getDb().update(logistics_expenses).set({
       deleted_at: new Date(),
       version: existing.version + 1,
       updated_at: new Date()
@@ -174,15 +174,15 @@ export class LogisticsService {
   // BUCKET RENTALS
   // ----------------------------------------------------
   static async getAllBucketRentals() {
-    return await db.select().from(logistics_bucket_rentals).where(sql`${logistics_bucket_rentals.deleted_at} IS NULL`).orderBy(sql`${logistics_bucket_rentals.date} DESC`);
+    return await getDb().select().from(logistics_bucket_rentals).where(sql`${logistics_bucket_rentals.deleted_at} IS NULL`).orderBy(sql`${logistics_bucket_rentals.date} DESC`);
   }
 
   static async getBucketRentalById(id: string) {
-    return (await db.select().from(logistics_bucket_rentals).where(eq(logistics_bucket_rentals.id, id)).limit(1))[0];
+    return (await getDb().select().from(logistics_bucket_rentals).where(eq(logistics_bucket_rentals.id, id)).limit(1))[0];
   }
 
   static async createBucketRental(data: any) {
-    const inserted = await db.insert(logistics_bucket_rentals).values({
+    const inserted = await getDb().insert(logistics_bucket_rentals).values({
       id: randomUUID(),
       date: data.date,
       time: data.time,
@@ -203,11 +203,11 @@ export class LogisticsService {
   }
 
   static async updateBucketRental(id: string, data: any, version: number) {
-    const existing = (await db.select().from(logistics_bucket_rentals).where(eq(logistics_bucket_rentals.id, id)).limit(1))[0];
+    const existing = (await getDb().select().from(logistics_bucket_rentals).where(eq(logistics_bucket_rentals.id, id)).limit(1))[0];
     if (!existing) throw new Error('404: Bucket rental not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    const updated = await db.update(logistics_bucket_rentals).set({
+    const updated = await getDb().update(logistics_bucket_rentals).set({
       date: data.date,
       time: data.time,
       customer_name: data.customer_name,
@@ -226,11 +226,11 @@ export class LogisticsService {
   }
 
   static async deleteBucketRental(id: string, version: number) {
-    const existing = (await db.select().from(logistics_bucket_rentals).where(eq(logistics_bucket_rentals.id, id)).limit(1))[0];
+    const existing = (await getDb().select().from(logistics_bucket_rentals).where(eq(logistics_bucket_rentals.id, id)).limit(1))[0];
     if (!existing) throw new Error('404: Bucket rental not found');
     if (existing.version !== version) throw new Error('409: Conflict');
 
-    await db.update(logistics_bucket_rentals).set({
+    await getDb().update(logistics_bucket_rentals).set({
       deleted_at: new Date(),
       version: existing.version + 1,
       updated_at: new Date()
@@ -242,8 +242,8 @@ export class LogisticsService {
   // ----------------------------------------------------
   static async getVehicleProfits() {
     const vehicles = await this.getAllVehicles();
-    const expenses = await db.select().from(logistics_expenses).where(sql`${logistics_expenses.deleted_at} IS NULL`);
-    const rentals = await db.select().from(logistics_bucket_rentals).where(sql`${logistics_bucket_rentals.deleted_at} IS NULL`);
+    const expenses = await getDb().select().from(logistics_expenses).where(sql`${logistics_expenses.deleted_at} IS NULL`);
+    const rentals = await getDb().select().from(logistics_bucket_rentals).where(sql`${logistics_bucket_rentals.deleted_at} IS NULL`);
 
     return vehicles.map((v: any) => {
       let total_income = 0;
@@ -271,7 +271,7 @@ export class LogisticsService {
   // OUTSIDE LOADER FEES
   // ----------------------------------------------------
   static async getOutsideLoaderFees() {
-    const rawInvoices = await db
+    const rawInvoices = await getDb()
       .select({
         id: invoices.id,
         invoice_number: invoices.invoice_number,

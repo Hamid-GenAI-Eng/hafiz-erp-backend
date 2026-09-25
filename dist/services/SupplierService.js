@@ -10,14 +10,14 @@ class SupplierService {
     // ----------------------------------------------------
     static async getAllSuppliers() {
         // Only return active suppliers (deleted_at is null)
-        const result = await database_1.db.select()
+        const result = await (0, database_1.getDb)().select()
             .from(schema_1.suppliers)
             .where((0, drizzle_orm_1.sql) `${schema_1.suppliers.deleted_at} IS NULL`)
             .orderBy(schema_1.suppliers.company_name);
         return result;
     }
     static async getSupplierById(id) {
-        const result = await database_1.db.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, id)).limit(1);
+        const result = await (0, database_1.getDb)().select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, id)).limit(1);
         if (!result || result.length === 0)
             return null;
         return result[0];
@@ -31,7 +31,7 @@ class SupplierService {
             created_at: new Date(),
             updated_at: new Date()
         };
-        await database_1.db.insert(schema_1.suppliers).values(newSupplier);
+        await (0, database_1.getDb)().insert(schema_1.suppliers).values(newSupplier);
         return newSupplier;
     }
     static async updateSupplier(id, data, incomingVersion) {
@@ -48,7 +48,7 @@ class SupplierService {
             version: existing.version + 1,
             updated_at: new Date()
         };
-        await database_1.db.update(schema_1.suppliers).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, id));
+        await (0, database_1.getDb)().update(schema_1.suppliers).set(updatedData).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, id));
         return await this.getSupplierById(id);
     }
     static async deleteSupplier(id, incomingVersion) {
@@ -58,7 +58,7 @@ class SupplierService {
             throw new Error('Supplier not found');
         if (existing.version !== incomingVersion)
             throw new Error('409: Conflict - version mismatch');
-        await database_1.db.update(schema_1.suppliers).set({
+        await (0, database_1.getDb)().update(schema_1.suppliers).set({
             status: 'inactive',
             deleted_at: new Date(),
             version: existing.version + 1,
@@ -70,7 +70,7 @@ class SupplierService {
     // Supplier Ledgers
     // ----------------------------------------------------
     static async getLedgerHistory(supplierId) {
-        const result = await database_1.db.select()
+        const result = await (0, database_1.getDb)().select()
             .from(schema_1.supplier_ledgers)
             .where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.supplier_id, supplierId))
             .orderBy(schema_1.supplier_ledgers.created_at);
@@ -78,7 +78,7 @@ class SupplierService {
     }
     static async createLedgerEntry(data) {
         // Executing sequentially to avoid async transaction conflicts between SQLite and Postgres
-        const suppArray = await database_1.db.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, data.supplier_id)).limit(1);
+        const suppArray = await (0, database_1.getDb)().select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, data.supplier_id)).limit(1);
         if (!suppArray || suppArray.length === 0)
             throw new Error('Supplier not found');
         const supp = suppArray[0];
@@ -92,9 +92,9 @@ class SupplierService {
             created_at: new Date(),
             updated_at: new Date()
         };
-        await database_1.db.insert(schema_1.supplier_ledgers).values(entry);
+        await (0, database_1.getDb)().insert(schema_1.supplier_ledgers).values(entry);
         // 2. Update Supplier Cache
-        await database_1.db.update(schema_1.suppliers).set({
+        await (0, database_1.getDb)().update(schema_1.suppliers).set({
             balance_owed: newRunningBalance,
             total_purchased: supp.total_purchased + data.amount,
             total_paid: supp.total_paid + data.payment_amount,
@@ -106,7 +106,7 @@ class SupplierService {
     static async updateLedgerEntry(ledgerId, incomingVersion, data) {
         // Executing sequentially to avoid async transaction conflicts between SQLite and Postgres
         // 1. Get existing ledger
-        const existingLedgerArray = await database_1.db.select().from(schema_1.supplier_ledgers).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId)).limit(1);
+        const existingLedgerArray = await (0, database_1.getDb)().select().from(schema_1.supplier_ledgers).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId)).limit(1);
         if (!existingLedgerArray || existingLedgerArray.length === 0)
             throw new Error('Ledger entry not found');
         const existingLedger = existingLedgerArray[0];
@@ -115,7 +115,7 @@ class SupplierService {
             throw new Error('409: Conflict - version mismatch');
         }
         // 2. Get supplier
-        const suppArray = await database_1.db.select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, existingLedger.supplier_id)).limit(1);
+        const suppArray = await (0, database_1.getDb)().select().from(schema_1.suppliers).where((0, drizzle_orm_1.eq)(schema_1.suppliers.id, existingLedger.supplier_id)).limit(1);
         if (!suppArray || suppArray.length === 0)
             throw new Error('Supplier not found');
         const supp = suppArray[0];
@@ -132,9 +132,9 @@ class SupplierService {
             version: existingLedger.version + 1,
             updated_at: new Date()
         };
-        await database_1.db.update(schema_1.supplier_ledgers).set(updatedLedger).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId));
+        await (0, database_1.getDb)().update(schema_1.supplier_ledgers).set(updatedLedger).where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.id, ledgerId));
         // 5. Update Supplier
-        await database_1.db.update(schema_1.suppliers).set({
+        await (0, database_1.getDb)().update(schema_1.suppliers).set({
             balance_owed: newSupplierBalance,
             total_purchased: supp.total_purchased + amountDiff,
             total_paid: supp.total_paid + paymentDiff,
