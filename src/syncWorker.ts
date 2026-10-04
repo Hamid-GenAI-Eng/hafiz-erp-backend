@@ -100,6 +100,9 @@ export function startSyncWorker() {
   
   console.log('Sync Worker: Started (Running in Local/SQLite mode)');
 
+  // Run immediately on startup
+  runSyncWorkerLogic().catch(e => console.error('Initial sync failed', e));
+
   // Run every 60 seconds
   setInterval(async () => {
     try {
