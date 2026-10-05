@@ -1,11 +1,11 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { getDb } from "../config/database";
 import { diary_notes } from "../models/schema";
 import { randomUUID } from "crypto";
 
 export class NotesService {
   static async getAll() {
-    return await getDb().select().from(diary_notes).orderBy(desc(diary_notes.created_at));
+    return await getDb().select().from(diary_notes).where(sql`${diary_notes.deleted_at} IS NULL`).orderBy(desc(diary_notes.created_at));
   }
 
   static async getById(id: string) {
@@ -48,6 +48,6 @@ export class NotesService {
     const results = await getDb().select().from(diary_notes).where(eq(diary_notes.id, id)).limit(1);
     const existing = results.length > 0 ? results[0] : null;
     if (!existing) throw new Error("Note not found");
-    await getDb().delete(diary_notes).where(eq(diary_notes.id, id));
+    await getDb().update(diary_notes).set({ deleted_at: new Date(), updated_at: new Date() }).where(eq(diary_notes.id, id));
   }
 }

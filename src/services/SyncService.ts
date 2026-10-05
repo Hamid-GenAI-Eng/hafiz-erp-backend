@@ -3,10 +3,12 @@ import * as schema from '../models/schema';
 import { eq, gt } from 'drizzle-orm';
 
 const SYNCABLE_TABLES = [
-  'customers', 'ledgers', 'suppliers', 'supplier_ledgers', 'products',
-  'settings', 'logistics_vehicles', 'logistics_employees', 'logistics_expenses',
-  'logistics_bucket_rentals', 'misc_expenses', 'invoices', 'invoice_items',
-  'diary', 'diary_items', 'diary_notes'
+  // 1. Root Tables
+  'settings', 'customers', 'suppliers', 'products', 'logistics_vehicles', 'logistics_employees', 'diary_notes',
+  // 2. First-level dependencies (invoices, rentals, diary)
+  'invoices', 'diary', 'logistics_bucket_rentals',
+  // 3. Second-level dependencies (items, ledgers, expenses)
+  'invoice_items', 'diary_items', 'ledgers', 'supplier_ledgers', 'logistics_expenses', 'misc_expenses'
 ];
 
 export class SyncService {
@@ -130,7 +132,7 @@ export class SyncService {
                 const { invoice_items } = require('../models/schema');
                 const { randomUUID } = require('crypto');
                 
-                await getDb().delete(invoice_items).where(eq(invoice_items.invoice_id, rowData.id));
+                await getDb().update(invoice_items).set({ deleted_at: new Date(), updated_at: new Date() }).where(eq(invoice_items.invoice_id, rowData.id));
 
                 for (const item of legacyItems) {
                   await getDb().insert(invoice_items).values({

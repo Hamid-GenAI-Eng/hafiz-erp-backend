@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, desc } from 'drizzle-orm';
 import { getDb } from '../config/database';
 import { suppliers, supplier_ledgers } from '../models/schema';
 
@@ -91,7 +91,7 @@ export class SupplierService {
     const result = await getDb().select()
       .from(supplier_ledgers)
       .where(eq(supplier_ledgers.supplier_id, supplierId))
-      .orderBy(supplier_ledgers.created_at);
+      .orderBy(desc(supplier_ledgers.date), desc(supplier_ledgers.time), desc(supplier_ledgers.created_at));
     return result;
   }
 

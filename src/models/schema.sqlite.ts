@@ -315,6 +315,7 @@ export const diary_items = sqliteTable('diary_items', {
   device_id: text('device_id'),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull(),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  deleted_at: integer('deleted_at', { mode: 'timestamp' })
 });
 
 export const diary_notes = sqliteTable('diary_notes', {
@@ -326,6 +327,7 @@ export const diary_notes = sqliteTable('diary_notes', {
   device_id: text('device_id'),
   created_at: integer('created_at', { mode: 'timestamp' }).notNull(),
   updated_at: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  deleted_at: integer('deleted_at', { mode: 'timestamp' })
 });
 
 export const sync_logs = sqliteTable('sync_logs', {

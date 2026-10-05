@@ -279,7 +279,7 @@ export class LogisticsService {
         outside_loader_fee: invoices.outside_loader_fee
       })
       .from(invoices)
-      .where(sql`${invoices.outside_loader_fee} > 0`);
+      .where(sql`${invoices.outside_loader_fee} > 0 AND ${invoices.deleted_at} IS NULL`);
 
     return rawInvoices.map((inv: any) => ({
       id: `loader-${inv.id}`,

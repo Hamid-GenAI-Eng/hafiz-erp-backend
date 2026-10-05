@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '../config/database';
 import { customers, ledgers } from '../models/schema';
 
@@ -87,7 +87,7 @@ export class CrmService {
     const result = await getDb().select()
       .from(ledgers)
       .where(eq(ledgers.customer_id, customerId))
-      .orderBy(ledgers.created_at);
+      .orderBy(desc(ledgers.date), desc(ledgers.time), desc(ledgers.created_at));
     return result;
   }
 

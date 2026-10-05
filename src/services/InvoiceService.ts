@@ -45,12 +45,12 @@ export class InvoiceService {
     const items = await getDb()
       .select()
       .from(invoice_items)
-      .where(eq(invoice_items.invoice_id, id));
+      .where(and(eq(invoice_items.invoice_id, id), sql`${invoice_items.deleted_at} IS NULL`));
 
     const logistics = await getDb()
       .select()
       .from(logistics_expenses)
-      .where(eq(logistics_expenses.invoice_id, id));
+      .where(and(eq(logistics_expenses.invoice_id, id), sql`${logistics_expenses.deleted_at} IS NULL`));
 
     const loaders = logistics.filter((l: any) => l.type === 'income').map((l: any) => ({
       vehicle_id: l.vehicle_id,
@@ -341,9 +341,9 @@ export class InvoiceService {
       // First, reverse the effects of the old invoice (pass isEdit = true to skip Ledger reversal)
       await this.reverseInvoiceEffects(existing, false, true);
 
-      // Physically delete old invoice items and logistics expenses to insert new ones
-      await getDb().delete(invoice_items).where(eq(invoice_items.invoice_id, id));
-      await getDb().delete(logistics_expenses).where(eq(logistics_expenses.invoice_id, id));
+      // Soft delete old invoice items and logistics expenses to insert new ones
+      await getDb().update(invoice_items).set({ deleted_at: new Date(), updated_at: new Date() }).where(eq(invoice_items.invoice_id, id));
+      await getDb().update(logistics_expenses).set({ deleted_at: new Date(), updated_at: new Date() }).where(eq(logistics_expenses.invoice_id, id));
 
       // Update main invoice
       await getDb()

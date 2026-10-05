@@ -1,4 +1,4 @@
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { getDb } from "../config/database";
 import { diary, diary_items, products, logistics_expenses, ledgers, customers, invoices, invoice_items } from "../models/schema";
 import { randomUUID } from "crypto";
@@ -9,7 +9,7 @@ export class DiaryService {
     
     const result = [];
     for (const entry of entries) {
-      const items = await getDb().select().from(diary_items).where(eq(diary_items.diary_id, entry.id));
+      const items = await getDb().select().from(diary_items).where(and(eq(diary_items.diary_id, entry.id), sql`deleted_at IS NULL`));
       const itemsWithTime = items.map((item: any) => {
         if (!item.time && entry.created_at) {
           const d = new Date(entry.created_at);
@@ -20,7 +20,7 @@ export class DiaryService {
         }
         return item;
       });
-      const logistics = await getDb().select().from(logistics_expenses).where(eq(logistics_expenses.invoice_id, entry.id));
+      const logistics = await getDb().select().from(logistics_expenses).where(and(eq(logistics_expenses.invoice_id, entry.id), sql`deleted_at IS NULL`));
       
       const materialDetails = {
         linked_note_id: entry.linked_note_id,
@@ -131,8 +131,8 @@ export class DiaryService {
           await getDb().update(products).set({ current_qty: sql`current_qty + ${item.quantity}`, updated_at: new Date() }).where(eq(products.id, item.product_id));
        }
     }
-    await getDb().delete(diary_items).where(eq(diary_items.diary_id, diaryId));
-    await getDb().delete(logistics_expenses).where(eq(logistics_expenses.invoice_id, diaryId));
+    await getDb().update(diary_items).set({ deleted_at: new Date(), updated_at: new Date() }).where(eq(diary_items.diary_id, diaryId));
+    await getDb().update(logistics_expenses).set({ deleted_at: new Date(), updated_at: new Date() }).where(eq(logistics_expenses.invoice_id, diaryId));
   }
 
   static async updateEntry(id: string, data: any) {
