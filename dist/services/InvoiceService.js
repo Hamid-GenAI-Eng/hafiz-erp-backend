@@ -31,21 +31,47 @@ class InvoiceService {
             .leftJoin(schema_1.customers, (0, drizzle_orm_1.eq)(schema_1.invoices.customer_id, schema_1.customers.id))
             .where((0, drizzle_orm_1.sql) `${schema_1.invoices.deleted_at} IS NULL`)
             .orderBy((0, drizzle_orm_1.sql) `${schema_1.invoices.date} DESC, ${schema_1.invoices.time} DESC`);
+        console.log('\n📋 [TRACE] getAllInvoices Total Rows:', rows.length);
+        console.log('📋 [TRACE] First Row Payload:', JSON.stringify(rows[0] || 'Empty', null, 2));
         return rows.map((r) => ({
             ...r.invoice,
+            shipping: Number(r.invoice.shipping || 0) + Number(r.invoice.internal_shipping || 0) + Number(r.invoice.outside_loader_fee || 0),
             customer_name: r.customer_name
         }));
     }
     static async getInvoiceById(id) {
         const invoiceResult = await (0, database_1.getDb)()
-            .select()
+            .select({
+            invoice: schema_1.invoices,
+            customer_name: schema_1.customers.name,
+            customer_phone: schema_1.customers.phone,
+            customer_address: schema_1.customers.address
+        })
             .from(schema_1.invoices)
+            .leftJoin(schema_1.customers, (0, drizzle_orm_1.eq)(schema_1.invoices.customer_id, schema_1.customers.id))
             .where((0, drizzle_orm_1.eq)(schema_1.invoices.id, id))
             .limit(1);
         if (!invoiceResult || invoiceResult.length === 0)
             return null;
         const items = await (0, database_1.getDb)()
-            .select()
+            .select({
+            id: schema_1.invoice_items.id,
+            invoice_id: schema_1.invoice_items.invoice_id,
+            product_id: schema_1.invoice_items.product_id,
+            description: schema_1.invoice_items.description,
+            name: schema_1.invoice_items.description, // Aliased for React mapping
+            title: schema_1.invoice_items.description, // Aliased for React mapping
+            quantity: schema_1.invoice_items.quantity,
+            qty: schema_1.invoice_items.quantity, // Aliased
+            unit_price: schema_1.invoice_items.unit_price,
+            price: schema_1.invoice_items.unit_price, // Aliased
+            total_price: schema_1.invoice_items.total_price,
+            amount: schema_1.invoice_items.total_price, // Aliased
+            total: schema_1.invoice_items.total_price, // Aliased
+            version: schema_1.invoice_items.version,
+            created_at: schema_1.invoice_items.created_at,
+            updated_at: schema_1.invoice_items.updated_at
+        })
             .from(schema_1.invoice_items)
             .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id), (0, drizzle_orm_1.sql) `${schema_1.invoice_items.deleted_at} IS NULL`));
         const logistics = await (0, database_1.getDb)()
@@ -56,8 +82,18 @@ class InvoiceService {
             vehicle_id: l.vehicle_id,
             fee: l.amount
         }));
+        const r = invoiceResult[0];
+        const invoice = r.invoice;
+        invoice.shipping = Number(invoice.shipping || 0) + Number(invoice.internal_shipping || 0) + Number(invoice.outside_loader_fee || 0);
+        console.log('\n🛑 [API BOUNDARY TRACE] Fetching Invoice ID:', id);
+        console.log('📦 [TRACE] Final Shipping Value:', invoice.shipping);
+        console.log('📦 [TRACE] Items Array Length:', items?.length);
+        console.log('📦 [TRACE] First Item Payload:', JSON.stringify(items[0] || 'No Items', null, 2));
         return {
-            ...invoiceResult[0],
+            ...invoice,
+            customer_name: r.customer_name || invoice.walkin_name || 'Cash Customer',
+            phone: r.customer_phone || invoice.walkin_phone || '-',
+            address: r.customer_address || '-',
             items,
             loaders,
         };

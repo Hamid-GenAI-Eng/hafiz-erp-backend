@@ -244,7 +244,7 @@ export class DiaryService {
   static async settleMultiple(data: any) {
     const { ids, shipping, internal_shipping, outside_loader_fee, loaders, customer_id, customer_name, phone } = data;
     
-    return await getDb().transaction(async (tx) => {
+    return await getDb().transaction(async (tx: any) => {
       let totalBill = 0;
       let totalPaid = 0;
       let allItems: any[] = [];

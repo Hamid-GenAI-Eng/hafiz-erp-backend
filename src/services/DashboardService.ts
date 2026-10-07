@@ -196,37 +196,37 @@ export class DashboardService {
     const invCashInGroup = await getDb().select({ date: invoices.date, total: sql<number>`SUM(amount_paid)` })
       .from(invoices).where(and(sql`${invoices.status} IN ('active', 'Completed', 'Paid')`, sql`${invoices.customer_id} IS NULL`, isNull(invoices.deleted_at), gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)))
       .groupBy(invoices.date);
-    invCashInGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashIn += r.total; });
+    invCashInGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashIn += r.total; });
 
     const ledCashInGroup = await getDb().select({ date: ledgers.date, total: sql<number>`SUM(payment_amount)` })
       .from(ledgers).where(and(sql`${ledgers.payment_amount} > 0`, gte(ledgers.date, startDateStr), lte(ledgers.date, endDateStr)))
       .groupBy(ledgers.date);
-    ledCashInGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashIn += r.total; });
+    ledCashInGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashIn += r.total; });
 
     const diaCashInGroup = await getDb().select({ date: diary.date, total: sql<number>`SUM(amount_paid)` })
       .from(diary).where(and(sql`${diary.status} = 'pending'`, isNull(diary.deleted_at), gte(diary.date, startDateStr), lte(diary.date, endDateStr)))
       .groupBy(diary.date);
-    diaCashInGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashIn += r.total; });
+    diaCashInGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashIn += r.total; });
 
     const supCashOutGroup = await getDb().select({ date: supplier_ledgers.date, total: sql<number>`SUM(payment_amount)` })
       .from(supplier_ledgers).where(and(sql`${supplier_ledgers.payment_amount} > 0`, gte(supplier_ledgers.date, startDateStr), lte(supplier_ledgers.date, endDateStr)))
       .groupBy(supplier_ledgers.date);
-    supCashOutGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
+    supCashOutGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
 
     const miscOutGroup = await getDb().select({ date: misc_expenses.date, total: sql<number>`SUM(amount)` })
       .from(misc_expenses).where(and(gte(misc_expenses.date, startDateStr), lte(misc_expenses.date, endDateStr)))
       .groupBy(misc_expenses.date);
-    miscOutGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
+    miscOutGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
 
     const logOutGroup = await getDb().select({ date: logistics_expenses.date, total: sql<number>`SUM(amount)` })
       .from(logistics_expenses).where(and(eq(logistics_expenses.type, 'expense'), gte(logistics_expenses.date, startDateStr), lte(logistics_expenses.date, endDateStr)))
       .groupBy(logistics_expenses.date);
-    logOutGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
+    logOutGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
 
     const outLoaderOutGroup = await getDb().select({ date: invoices.date, total: sql<number>`SUM(outside_loader_fee)` })
       .from(invoices).where(and(sql`${invoices.status} IN ('active', 'Completed', 'Paid')`, sql`${invoices.outside_loader_fee} > 0`, isNull(invoices.deleted_at), gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)))
       .groupBy(invoices.date);
-    outLoaderOutGroup.forEach(r => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
+    outLoaderOutGroup.forEach((r: any) => { if(chartMap.has(r.date)) chartMap.get(r.date)!.cashOut += r.total; });
 
     const chartData = Array.from(chartMap.entries()).map(([date, data]) => ({ name: date, ...data }));
     chartData.sort((a, b) => a.name.localeCompare(b.name));
