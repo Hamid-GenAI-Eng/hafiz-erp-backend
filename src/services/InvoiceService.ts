@@ -4,7 +4,8 @@ import {
   invoice_items,
   products,
   logistics_expenses,
-  ledgers
+  ledgers,
+  customers
 } from "../models/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -27,23 +28,59 @@ export class InvoiceService {
   }
 
   static async getAllInvoices() {
-    return await getDb()
-      .select()
+    const rows = await getDb()
+      .select({
+        invoice: invoices,
+        customer_name: customers.name
+      })
       .from(invoices)
+      .leftJoin(customers, eq(invoices.customer_id, customers.id))
       .where(sql`${invoices.deleted_at} IS NULL`)
       .orderBy(sql`${invoices.date} DESC, ${invoices.time} DESC`);
+
+    console.log('\n📋 [TRACE] getAllInvoices Total Rows:', rows.length);
+    console.log('📋 [TRACE] First Row Payload:', JSON.stringify(rows[0] || 'Empty', null, 2));
+
+    return rows.map((r: any) => ({
+      ...r.invoice,
+      shipping: Number(r.invoice.shipping || 0) + Number(r.invoice.internal_shipping || 0) + Number(r.invoice.outside_loader_fee || 0),
+      customer_name: r.customer_name
+    }));
   }
 
   static async getInvoiceById(id: string) {
     const invoiceResult = await getDb()
-      .select()
+      .select({
+         invoice: invoices,
+         customer_name: customers.name,
+         customer_phone: customers.phone,
+         customer_address: customers.address
+      })
       .from(invoices)
+      .leftJoin(customers, eq(invoices.customer_id, customers.id))
       .where(eq(invoices.id, id))
       .limit(1);
     if (!invoiceResult || invoiceResult.length === 0) return null;
 
     const items = await getDb()
-      .select()
+      .select({
+         id: invoice_items.id,
+         invoice_id: invoice_items.invoice_id,
+         product_id: invoice_items.product_id,
+         description: invoice_items.description,
+         name: invoice_items.description, // Aliased for React mapping
+         title: invoice_items.description, // Aliased for React mapping
+         quantity: invoice_items.quantity,
+         qty: invoice_items.quantity, // Aliased
+         unit_price: invoice_items.unit_price,
+         price: invoice_items.unit_price, // Aliased
+         total_price: invoice_items.total_price,
+         amount: invoice_items.total_price, // Aliased
+         total: invoice_items.total_price, // Aliased
+         version: invoice_items.version,
+         created_at: invoice_items.created_at,
+         updated_at: invoice_items.updated_at
+      })
       .from(invoice_items)
       .where(and(eq(invoice_items.invoice_id, id), sql`${invoice_items.deleted_at} IS NULL`));
 
@@ -57,8 +94,20 @@ export class InvoiceService {
       fee: l.amount
     }));
 
+    const r = invoiceResult[0];
+    const invoice = r.invoice as any;
+    invoice.shipping = Number(invoice.shipping || 0) + Number(invoice.internal_shipping || 0) + Number(invoice.outside_loader_fee || 0);
+
+    console.log('\n🛑 [API BOUNDARY TRACE] Fetching Invoice ID:', id);
+    console.log('📦 [TRACE] Final Shipping Value:', invoice.shipping);
+    console.log('📦 [TRACE] Items Array Length:', items?.length);
+    console.log('📦 [TRACE] First Item Payload:', JSON.stringify(items[0] || 'No Items', null, 2));
+
     return {
-      ...invoiceResult[0],
+      ...invoice,
+      customer_name: r.customer_name || invoice.walkin_name || 'Cash Customer',
+      phone: r.customer_phone || invoice.walkin_phone || '-',
+      address: r.customer_address || '-',
       items,
       loaders,
     };
@@ -100,7 +149,7 @@ export class InvoiceService {
         walkin_name: data.walkin_name,
         walkin_phone: data.walkin_phone,
         date: data.date,
-        time: data.time || new Date().toISOString().split("T")[1].slice(0, 5),
+        time: data.time || new Date().toTimeString().slice(0, 5),
         due_date: data.due_date,
         reference: data.reference,
         status: data.status || "active",
@@ -110,6 +159,8 @@ export class InvoiceService {
         internal_shipping: data.internal_shipping || 0,
         extra_discount: data.extra_discount || 0,
         outside_loader_fee: data.outside_loader_fee || 0,
+        outside_loader_name: data.outside_loader_name || null,
+        outside_loader_phone: data.outside_loader_phone || null,
         grand_total: data.grand_total || 0,
         amount_paid: data.amount_paid || 0,
         version: 1,
@@ -223,7 +274,7 @@ export class InvoiceService {
           id: randomUUID(),
           customer_id: invoice.customer_id,
           date: new Date().toISOString().split("T")[0],
-          time: new Date().toISOString().split("T")[1].slice(0, 5),
+          time: new Date().toTimeString().slice(0, 5),
           type: "reversal",
           amount: invoice.amount_paid, // Reversing the payment (becomes a charge to correct it)
           payment_amount: invoice.grand_total, // Reversing the charge (becomes a payment to correct it)
@@ -247,7 +298,7 @@ export class InvoiceService {
           vehicle_id: income.vehicle_id,
           invoice_id: invoiceId, // Linking reversal to the same invoice
           date: new Date().toISOString().split("T")[0],
-          time: new Date().toISOString().split("T")[1].slice(0, 5),
+          time: new Date().toTimeString().slice(0, 5),
           type: "expense", // Offsetting expense
           amount: income.amount,
           category: "Shipping Reversal",
@@ -363,6 +414,8 @@ export class InvoiceService {
           internal_shipping: data.internal_shipping || 0,
           extra_discount: data.extra_discount || 0,
           outside_loader_fee: data.outside_loader_fee || 0,
+          outside_loader_name: data.outside_loader_name !== undefined ? data.outside_loader_name : existing.outside_loader_name,
+          outside_loader_phone: data.outside_loader_phone !== undefined ? data.outside_loader_phone : existing.outside_loader_phone,
           grand_total: data.grand_total || 0,
           amount_paid: data.amount_paid || 0,
           version: existing.version + 1,

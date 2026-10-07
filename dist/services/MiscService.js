@@ -16,7 +16,7 @@ class MiscService {
         const inserted = await (0, database_1.getDb)().insert(schema_1.misc_expenses).values({
             id: (0, crypto_1.randomUUID)(),
             date: data.date,
-            time: data.time || new Date().toISOString().split('T')[1].slice(0, 5),
+            time: data.time || new Date().toTimeString().slice(0, 5),
             category: data.category,
             amount: data.amount,
             description: data.description || '',

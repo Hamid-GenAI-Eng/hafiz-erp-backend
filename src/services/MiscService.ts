@@ -16,7 +16,7 @@ export class MiscService {
     const inserted = await getDb().insert(misc_expenses).values({
       id: randomUUID(),
       date: data.date,
-      time: data.time || new Date().toISOString().split('T')[1].slice(0, 5),
+      time: data.time || new Date().toTimeString().slice(0, 5),
       category: data.category,
       amount: data.amount,
       description: data.description || '',

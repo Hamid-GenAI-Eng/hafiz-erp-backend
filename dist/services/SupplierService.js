@@ -73,7 +73,7 @@ class SupplierService {
         const result = await (0, database_1.getDb)().select()
             .from(schema_1.supplier_ledgers)
             .where((0, drizzle_orm_1.eq)(schema_1.supplier_ledgers.supplier_id, supplierId))
-            .orderBy(schema_1.supplier_ledgers.created_at);
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.supplier_ledgers.date), (0, drizzle_orm_1.desc)(schema_1.supplier_ledgers.time), (0, drizzle_orm_1.desc)(schema_1.supplier_ledgers.created_at));
         return result;
     }
     static async createLedgerEntry(data) {

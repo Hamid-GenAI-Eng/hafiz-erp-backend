@@ -73,7 +73,7 @@ class CrmService {
         const result = await (0, database_1.getDb)().select()
             .from(schema_1.ledgers)
             .where((0, drizzle_orm_1.eq)(schema_1.ledgers.customer_id, customerId))
-            .orderBy(schema_1.ledgers.created_at);
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.ledgers.date), (0, drizzle_orm_1.desc)(schema_1.ledgers.time), (0, drizzle_orm_1.desc)(schema_1.ledgers.created_at));
         return result;
     }
     static async createLedgerEntry(data) {

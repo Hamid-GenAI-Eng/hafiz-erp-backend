@@ -58,7 +58,7 @@ export class SupplierController {
           id: randomUUID(),
           supplier_id: newId,
           date: new Date().toISOString().split('T')[0],
-          time: new Date().toISOString().split('T')[1].slice(0, 5),
+          time: new Date().toTimeString().slice(0, 5),
           type: isDebt ? 'purchase' : 'payment',
           amount: isDebt ? openingBalance : 0,
           payment_amount: isDebt ? 0 : Math.abs(openingBalance),

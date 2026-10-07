@@ -70,7 +70,8 @@ export class DiaryController {
 
   static async settleMultiple(req: Request, res: Response) {
     try {
-      const { ids } = req.body;
+      const { ids } = req.body; console.log('Settle Multiple called with ids:', ids);
+      console.log('🛑 [TRACE] API HIT! Received IDs:', req.body.ids);
       if (!Array.isArray(ids)) {
         return res.status(400).json({ error: "ids must be an array" });
       }

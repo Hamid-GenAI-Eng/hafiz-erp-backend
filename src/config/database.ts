@@ -109,6 +109,10 @@ export function initializeDatabase(): void {
         safeAddColumn(t, 'deleted_at', 'INTEGER');
       }
 
+      // Add missing loader columns to invoices for backward compatibility
+      safeAddColumn('invoices', 'outside_loader_name', 'text');
+      safeAddColumn('invoices', 'outside_loader_phone', 'text');
+
       console.log('[Migration] Safe column check complete.');
 
       // Verify required tables exist

@@ -22,11 +22,19 @@ class InvoiceService {
         return "INV-1001";
     }
     static async getAllInvoices() {
-        return await (0, database_1.getDb)()
-            .select()
+        const rows = await (0, database_1.getDb)()
+            .select({
+            invoice: schema_1.invoices,
+            customer_name: schema_1.customers.name
+        })
             .from(schema_1.invoices)
+            .leftJoin(schema_1.customers, (0, drizzle_orm_1.eq)(schema_1.invoices.customer_id, schema_1.customers.id))
             .where((0, drizzle_orm_1.sql) `${schema_1.invoices.deleted_at} IS NULL`)
             .orderBy((0, drizzle_orm_1.sql) `${schema_1.invoices.date} DESC, ${schema_1.invoices.time} DESC`);
+        return rows.map((r) => ({
+            ...r.invoice,
+            customer_name: r.customer_name
+        }));
     }
     static async getInvoiceById(id) {
         const invoiceResult = await (0, database_1.getDb)()
@@ -39,11 +47,11 @@ class InvoiceService {
         const items = await (0, database_1.getDb)()
             .select()
             .from(schema_1.invoice_items)
-            .where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id), (0, drizzle_orm_1.sql) `${schema_1.invoice_items.deleted_at} IS NULL`));
         const logistics = await (0, database_1.getDb)()
             .select()
             .from(schema_1.logistics_expenses)
-            .where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id));
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id), (0, drizzle_orm_1.sql) `${schema_1.logistics_expenses.deleted_at} IS NULL`));
         const loaders = logistics.filter((l) => l.type === 'income').map((l) => ({
             vehicle_id: l.vehicle_id,
             fee: l.amount
@@ -88,7 +96,7 @@ class InvoiceService {
                 walkin_name: data.walkin_name,
                 walkin_phone: data.walkin_phone,
                 date: data.date,
-                time: data.time || new Date().toISOString().split("T")[1].slice(0, 5),
+                time: data.time || new Date().toTimeString().slice(0, 5),
                 due_date: data.due_date,
                 reference: data.reference,
                 status: data.status || "active",
@@ -98,6 +106,8 @@ class InvoiceService {
                 internal_shipping: data.internal_shipping || 0,
                 extra_discount: data.extra_discount || 0,
                 outside_loader_fee: data.outside_loader_fee || 0,
+                outside_loader_name: data.outside_loader_name || null,
+                outside_loader_phone: data.outside_loader_phone || null,
                 grand_total: data.grand_total || 0,
                 amount_paid: data.amount_paid || 0,
                 version: 1,
@@ -196,7 +206,7 @@ class InvoiceService {
                     id: (0, crypto_1.randomUUID)(),
                     customer_id: invoice.customer_id,
                     date: new Date().toISOString().split("T")[0],
-                    time: new Date().toISOString().split("T")[1].slice(0, 5),
+                    time: new Date().toTimeString().slice(0, 5),
                     type: "reversal",
                     amount: invoice.amount_paid, // Reversing the payment (becomes a charge to correct it)
                     payment_amount: invoice.grand_total, // Reversing the charge (becomes a payment to correct it)
@@ -219,7 +229,7 @@ class InvoiceService {
                     vehicle_id: income.vehicle_id,
                     invoice_id: invoiceId, // Linking reversal to the same invoice
                     date: new Date().toISOString().split("T")[0],
-                    time: new Date().toISOString().split("T")[1].slice(0, 5),
+                    time: new Date().toTimeString().slice(0, 5),
                     type: "expense", // Offsetting expense
                     amount: income.amount,
                     category: "Shipping Reversal",
@@ -305,9 +315,9 @@ class InvoiceService {
             }
             // First, reverse the effects of the old invoice (pass isEdit = true to skip Ledger reversal)
             await this.reverseInvoiceEffects(existing, false, true);
-            // Physically delete old invoice items and logistics expenses to insert new ones
-            await (0, database_1.getDb)().delete(schema_1.invoice_items).where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
-            await (0, database_1.getDb)().delete(schema_1.logistics_expenses).where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id));
+            // Soft delete old invoice items and logistics expenses to insert new ones
+            await (0, database_1.getDb)().update(schema_1.invoice_items).set({ deleted_at: new Date(), updated_at: new Date() }).where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, id));
+            await (0, database_1.getDb)().update(schema_1.logistics_expenses).set({ deleted_at: new Date(), updated_at: new Date() }).where((0, drizzle_orm_1.eq)(schema_1.logistics_expenses.invoice_id, id));
             // Update main invoice
             await (0, database_1.getDb)()
                 .update(schema_1.invoices)
@@ -326,6 +336,8 @@ class InvoiceService {
                 internal_shipping: data.internal_shipping || 0,
                 extra_discount: data.extra_discount || 0,
                 outside_loader_fee: data.outside_loader_fee || 0,
+                outside_loader_name: data.outside_loader_name !== undefined ? data.outside_loader_name : existing.outside_loader_name,
+                outside_loader_phone: data.outside_loader_phone !== undefined ? data.outside_loader_phone : existing.outside_loader_phone,
                 grand_total: data.grand_total || 0,
                 amount_paid: data.amount_paid || 0,
                 version: existing.version + 1,

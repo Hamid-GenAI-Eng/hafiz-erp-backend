@@ -263,7 +263,7 @@ class LogisticsService {
             outside_loader_fee: schema_1.invoices.outside_loader_fee
         })
             .from(schema_1.invoices)
-            .where((0, drizzle_orm_1.sql) `${schema_1.invoices.outside_loader_fee} > 0`);
+            .where((0, drizzle_orm_1.sql) `${schema_1.invoices.outside_loader_fee} > 0 AND ${schema_1.invoices.deleted_at} IS NULL`);
         return rawInvoices.map((inv) => ({
             id: `loader-${inv.id}`,
             vehicle_id: null,

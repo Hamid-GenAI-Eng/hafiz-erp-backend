@@ -93,6 +93,19 @@ function initializeDatabase() {
             // diary_items table columns
             safeAddColumn('diary_items', 'time', 'text');
             safeAddColumn('diary_items', 'discount', 'real DEFAULT 0 NOT NULL');
+            // Handle missing deleted_at globally for all tables
+            const allTables = [
+                'customers', 'ledgers', 'suppliers', 'supplier_ledgers', 'products',
+                'settings', 'logistics_vehicles', 'logistics_employees', 'logistics_expenses',
+                'logistics_bucket_rentals', 'misc_expenses', 'invoices', 'invoice_items',
+                'diary', 'diary_items', 'diary_notes'
+            ];
+            for (const t of allTables) {
+                safeAddColumn(t, 'deleted_at', 'INTEGER');
+            }
+            // Add missing loader columns to invoices for backward compatibility
+            safeAddColumn('invoices', 'outside_loader_name', 'text');
+            safeAddColumn('invoices', 'outside_loader_phone', 'text');
             console.log('[Migration] Safe column check complete.');
             // Verify required tables exist
             const tables = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();

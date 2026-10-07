@@ -246,6 +246,8 @@ export const invoices = sqliteTable('invoices', {
   internal_shipping: real('internal_shipping').default(0).notNull(),
   extra_discount: real('extra_discount').default(0).notNull(),
   outside_loader_fee: real('outside_loader_fee').default(0).notNull(),
+  outside_loader_name: text('outside_loader_name'),
+  outside_loader_phone: text('outside_loader_phone'),
   grand_total: real('grand_total').default(0).notNull(),
   amount_paid: real('amount_paid').default(0).notNull(),
   
