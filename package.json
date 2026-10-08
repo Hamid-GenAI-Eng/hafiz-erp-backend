@@ -17,14 +17,15 @@
     },
     "scripts": {
         "dev": "tsx watch src/index.ts",
-        "build": "tsc"
+        "build": "tsc",
+        "package-sidecar": "npm rebuild better-sqlite3 --target=18.0.0 --libc=glibc && tsc && npx pkg . && copy hafiz-building-material-backend.exe \"../Hafiz building material frontend/src-tauri/bin/backend-x86_64-pc-windows-msvc.exe\""
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "type": "commonjs",
     "dependencies": {
-        "better-sqlite3": "^11.3.0",
+        "better-sqlite3": "^13.0.3",
         "cors": "^2.8.6",
         "dotenv": "^17.4.2",
         "drizzle-orm": "^0.45.2",

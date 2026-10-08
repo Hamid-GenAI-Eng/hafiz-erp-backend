@@ -86,7 +86,7 @@ export async function runSyncWorkerLogic() {
     }
 
   } catch (err: any) {
-    console.error('Sync Worker Error:', err.message);
+    console.error('🛑 [SYNC FAIL]:', err);
     await updateLastSyncTime(new Date(), 'failed', err.message).catch(e => console.error('Failed to log sync error', e));
     throw err;
   }

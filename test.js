@@ -1,0 +1,1 @@
+const db = require('better-sqlite3')(':memory:'); console.log('success');
