@@ -1,6 +1,6 @@
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '../config/database';
-import { customers, ledgers } from '../models/schema';
+import { customers, ledgers, invoices, invoice_items } from '../models/schema';
 
 export class CrmService {
   
@@ -88,7 +88,42 @@ export class CrmService {
       .from(ledgers)
       .where(eq(ledgers.customer_id, customerId))
       .orderBy(desc(ledgers.date), desc(ledgers.time), desc(ledgers.created_at));
-    return result;
+
+    // Enrich the data to replace UUID reference with Invoice ID and format description with items
+    const enriched = [];
+    for (const entry of result) {
+      const enrichedEntry = { ...entry };
+      if (entry.reference && entry.reference.length > 20) { // Looks like a UUID
+        try {
+          const invArray = await getDb().select().from(invoices).where(eq(invoices.id, entry.reference)).limit(1);
+          if (invArray && invArray.length > 0) {
+            const inv = invArray[0];
+            enrichedEntry.reference = inv.invoice_number; // Replace UUID with real Invoice ID
+
+            // Fetch items
+            const items = await getDb().select().from(invoice_items).where(eq(invoice_items.invoice_id, inv.id));
+            
+            let itemDesc = items.map((i: any) => `${i.quantity}x ${i.description || 'Item'}`).join(', ');
+            
+            let extraDesc = [];
+            if (inv.shipping > 0) extraDesc.push(`Shipping: PKR ${inv.shipping}`);
+            if (inv.internal_shipping > 0) extraDesc.push(`Internal Shipping: PKR ${inv.internal_shipping}`);
+            if (inv.outside_loader_fee > 0) extraDesc.push(`Labour: PKR ${inv.outside_loader_fee}`);
+            
+            if (itemDesc || extraDesc.length > 0) {
+              enrichedEntry.description = `${itemDesc}` + (extraDesc.length > 0 ? ` | ${extraDesc.join(', ')}` : '');
+            } else {
+              enrichedEntry.description = `Invoice ${inv.invoice_number}`;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to enrich ledger entry", err);
+        }
+      }
+      enriched.push(enrichedEntry);
+    }
+
+    return enriched;
   }
 
   static async createLedgerEntry(data: {
@@ -186,7 +221,7 @@ export class CrmService {
       version: cust.version + 1,
       updated_at: new Date()
     }).where(eq(customers.id, cust.id));
-
+ 
     // 6. Recalculate subsequent running balances for this customer
     await this.recalculateCustomerLedger(cust.id);
 

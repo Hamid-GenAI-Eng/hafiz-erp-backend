@@ -242,155 +242,147 @@ export class DiaryService {
   }
 
   static async settleMultiple(data: any) {
-    const { ids, shipping, internal_shipping, outside_loader_fee, loaders, customer_id, customer_name, phone } = data;
+    const { ids, shipping, internal_shipping, outside_loader_fee, loaders, customer_id, customer_name, phone, skip_invoice } = data;
+    const db = getDb();
     
-    return await getDb().transaction(async (tx: any) => {
-      let totalBill = 0;
-      let totalPaid = 0;
-      let allItems: any[] = [];
-      let customerId: string | null = customer_id || null;
-      let customerName = customer_name || "Walk-in";
-      let customerPhone = phone || "";
-      let totalDiscount = 0;
+    let customerId: string | null = customer_id || null;
+    let customerName = customer_name || "Walk-in";
+    let customerPhone = phone || "";
+    const d = new Date();
 
-      for (const id of ids) {
-         const existingArr = await tx.select().from(diary).where(eq(diary.id, id)).limit(1);
-         const existing = existingArr.length > 0 ? existingArr[0] : null;
-         console.log('🔍 [TRACE] Checking ID:', id, ' | Found Status:', existing?.status);
-         if (existing && existing.status === 'pending') {
-            totalBill += existing.total_bill;
-            totalPaid += existing.amount_paid;
-            totalDiscount += existing.discount || 0;
-            
-            const actualItems = await tx.select().from(diary_items).where(eq(diary_items.diary_id, id));
-            
-            const finalMapped = actualItems.map((i: any) => ({
-              product_id: i.product_id || null,
-              description: i.description || 'Diary Item',
-              quantity: i.quantity || 1,
-              unit_price: i.unit_price || 0,
-              total_price: i.total_price || 0
-            }));
+    let totalBill = 0;
+    let totalPaid = 0;
+    let totalDiscount = 0;
+    let totalShipping = 0;
+    let totalInternal = 0;
+    let totalOutside = 0;
+    
+    const allItems: any[] = [];
+    const allLoaders: any[] = [];
+    let lastDate = d.toISOString().split('T')[0];
 
-            allItems = allItems.concat(finalMapped);
-
-            await tx.update(diary).set({
-               status: 'cleared',
-               version: existing.version + 1,
-               updated_at: new Date()
-            }).where(eq(diary.id, id));
-         }
-      }
-
-      if (totalBill === 0 && totalPaid === 0) {
-         throw new Error("Transaction Failed: No eligible unledgered entries were found to process.");
-      }
-
-      console.log('💰 [TRACE] Calculated Totals -> Bill:', totalBill, 'Paid:', totalPaid);
-      if (totalBill > 0 || totalPaid > 0) {
-         const d = new Date();
-         const invoiceNumber = `INV-${Math.floor(Math.random() * 1000000)}`;
-         const invoiceId = randomUUID();
-         
-         const totalShipping = Number(shipping) || 0;
-         const totalInternal = Number(internal_shipping) || 0;
-         const totalOutside = Number(outside_loader_fee) || 0;
-
-         // 1. Create Formal Invoice for Sales Module
-         await tx.insert(invoices).values({
-            id: invoiceId,
-            invoice_number: invoiceNumber,
-            customer_id: customerId,
-            walkin_name: !customerId ? customerName : null,
-            walkin_phone: !customerId ? customerPhone : null,
-            status: 'Paid',
-            date: d.toISOString().split("T")[0],
-            time: d.toTimeString().slice(0, 5),
-            subtotal: totalBill - totalShipping - totalInternal - totalOutside + totalDiscount,
-            total_discount: totalDiscount,
-            shipping: totalShipping,
-            internal_shipping: totalInternal,
-            outside_loader_fee: totalOutside,
-            grand_total: totalBill,
-            amount_paid: totalBill, // Match the grand total so it's fully settled
-            version: 1,
-            created_at: d,
-            updated_at: d
-         });
-         console.log('✅ [TRACE] Invoice successfully inserted into DB!');
-
-         // 2. Create Invoice Items
+    for (const id of ids) {
+       const existingArr = await db.select().from(diary).where(eq(diary.id, id)).limit(1);
+       const existing = existingArr.length > 0 ? existingArr[0] : null;
+       
+       if (existing && (existing.status === 'pending' || (existing.status === 'cleared' && existing.total_bill === 0))) {
+          totalBill += existing.total_bill || 0;
+          totalPaid += existing.amount_paid || 0;
+          totalDiscount += existing.discount || 0;
+          
+          totalShipping += existing.shipping || 0;
+          totalInternal += existing.internal_shipping || 0;
+          totalOutside += existing.outside_loader_fee || 0;
+          
+          const loadersArr = await db.select().from(logistics_expenses).where(eq(logistics_expenses.invoice_id, id));
+          if (loadersArr && loadersArr.length > 0) {
+             allLoaders.push(...loadersArr);
+          }
+          
+          lastDate = existing.date;
+          
+          const actualItems = await db.select().from(diary_items).where(eq(diary_items.diary_id, id));
+          allItems.push(...actualItems);
+          
+          await db.update(diary).set({
+             status: skip_invoice ? 'ledgered' : 'cleared',
+             version: existing.version + 1,
+             updated_at: d
+          }).where(eq(diary.id, id));
+       }
+    }
+    
+    if (totalBill > 0 || totalPaid > 0) {
+       let invoiceId: string | null = null;
+       if (!skip_invoice && totalBill > 0) {
+          const invoiceNumber = `INV-${Math.floor(Math.random() * 1000000)}`;
+          invoiceId = randomUUID();
+          
+          await db.insert(invoices).values({
+             id: invoiceId,
+             invoice_number: invoiceNumber,
+             customer_id: customerId,
+             walkin_name: !customerId ? customerName : null,
+             walkin_phone: !customerId ? customerPhone : null,
+             status: 'Paid',
+             date: lastDate,
+             time: d.toTimeString().slice(0, 5),
+             subtotal: totalBill - totalShipping - totalInternal - totalOutside + totalDiscount,
+             total_discount: totalDiscount,
+             shipping: totalShipping,
+             internal_shipping: totalInternal,
+             outside_loader_fee: totalOutside,
+             grand_total: totalBill,
+             amount_paid: totalBill, // Mark as paid for cash customer
+             version: 1,
+             created_at: d,
+             updated_at: d
+          });
+          
           for (const item of allItems) {
-            await tx.insert(invoice_items).values({
+            await db.insert(invoice_items).values({
                id: randomUUID(),
                invoice_id: invoiceId,
-               product_id: item.product_id || null,
-               description: item.description || 'Misc Details',
-               quantity: item.quantity || 0,
+               product_id: item.product_id && item.product_id !== 'LABOUR' ? item.product_id : null,
+               description: item.description || 'Diary Item',
+               quantity: item.quantity || 1,
                unit_price: item.unit_price || 0,
                total_price: item.total_price || 0,
                version: 1,
                created_at: d,
                updated_at: d
             });
-         }
-
-         // 3. Logistics Integration (Income for Company Vehicles)
-         if (loaders && Array.isArray(loaders)) {
-            for (const loader of loaders) {
-               if (loader.vehicle_id && loader.fee > 0) {
-                  await tx.insert(logistics_expenses).values({
-                     id: randomUUID(),
-                     vehicle_id: String(loader.vehicle_id),
-                     invoice_id: invoiceId,
-                     date: d.toISOString().split("T")[0],
-                     // BUG FIX: Removed 'time' field as it does not exist in logistics_expenses schema
-                     type: "income",
-                     amount: loader.fee,
-                     category: "Shipping",
-                     description: `Delivery for Invoice ${invoiceNumber} (via Daily Diary Settle)`,
-                     version: 1,
-                     created_at: d,
-                     updated_at: d
-                  });
-                  console.log('🚚 [TRACE] Logistics ledger inserted for vehicle!');
-               }
-            }
-         }
-
-         // 4. Update Ledger if Customer is registered
-         if (customerId) {
-            const custArr = await tx.select().from(customers).where(eq(customers.id, customerId)).limit(1);
-            const cust = custArr.length > 0 ? custArr[0] : null;
-            if (cust) {
-               const newRunningBalance = cust.balance + (totalBill - totalPaid);
-               
-               await tx.insert(ledgers).values({
-                  id: randomUUID(),
-                  customer_id: customerId,
-                  date: d.toISOString().split("T")[0],
-                  time: d.toTimeString().slice(0, 5),
-                  type: "charge",
-                  amount: totalBill, 
-                  payment_amount: totalPaid,
-                  running_balance: newRunningBalance,
-                  description: `Invoice ${invoiceNumber} (Settled from Daily Diary)`,
-                  reference: invoiceId,
-                  version: 1,
-                  created_at: d,
-                  updated_at: d
-               });
-
-               await tx.update(customers).set({
-                  balance: newRunningBalance,
-                  total_charged: cust.total_charged + totalBill,
-                  total_paid: cust.total_paid + totalPaid,
-                  updated_at: d
-               }).where(eq(customers.id, customerId));
-            }
-         }
-      }
-    });
+          }
+       }
+       
+       for (const loader of allLoaders) {
+          if (loader.vehicle_id && loader.fee > 0) {
+             await db.insert(logistics_expenses).values({
+                id: randomUUID(),
+                vehicle_id: String(loader.vehicle_id),
+                invoice_id: skip_invoice ? null : invoiceId,
+                date: lastDate,
+                type: "income",
+                amount: loader.fee,
+                category: "Shipping",
+                description: skip_invoice ? `Delivery for Khata settlement (via Daily Diary)` : `Delivery for Invoice (via Daily Diary Settle)`,
+                version: 1,
+                created_at: d,
+                updated_at: d
+             });
+          }
+       }
+       
+       if (customerId) {
+          const custArr = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+          const cust = custArr.length > 0 ? custArr[0] : null;
+          if (cust) {
+             const newRunningBalance = cust.balance + (totalBill - totalPaid);
+             await db.insert(ledgers).values({
+                id: randomUUID(),
+                customer_id: customerId,
+                date: lastDate,
+                time: d.toTimeString().slice(0, 5),
+                type: "charge",
+                amount: totalBill, 
+                payment_amount: totalPaid,
+                running_balance: newRunningBalance,
+                description: skip_invoice ? `Settled from Daily Diary (Khata Direct)` : `Settled from Daily Diary`,
+                reference: skip_invoice ? null : invoiceId,
+                version: 1,
+                created_at: d,
+                updated_at: d
+             });
+             
+             await db.update(customers).set({
+                balance: newRunningBalance,
+                total_charged: cust.total_charged + totalBill,
+                total_paid: cust.total_paid + totalPaid,
+                updated_at: d
+             }).where(eq(customers.id, customerId));
+          }
+       }
+    }
   }
 
   static async payPartial(data: any) {
@@ -404,7 +396,7 @@ export class DiaryService {
       total_bill: 0,
       amount_paid: data.amount,
       payments: JSON.stringify([{ id: Date.now(), amount: data.amount, time: data.time || new Date().toTimeString().slice(0, 5), note: data.note }]),
-      status: 'cleared', 
+      status: 'pending', 
       created_at: new Date(),
       updated_at: new Date()
     };

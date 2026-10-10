@@ -14,7 +14,7 @@ export class DiaryController {
   static async getById(req: Request, res: Response) {
     try {
       const data = await DiaryService.getById(req.params.id as string);
-      res.json(data);
+      res.json(data); 
     } catch (error: any) {
       if (error.message.includes("not found")) {
         res.status(404).json({ error: error.message });

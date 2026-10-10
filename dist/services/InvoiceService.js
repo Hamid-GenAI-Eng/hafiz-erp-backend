@@ -31,8 +31,6 @@ class InvoiceService {
             .leftJoin(schema_1.customers, (0, drizzle_orm_1.eq)(schema_1.invoices.customer_id, schema_1.customers.id))
             .where((0, drizzle_orm_1.sql) `${schema_1.invoices.deleted_at} IS NULL`)
             .orderBy((0, drizzle_orm_1.sql) `${schema_1.invoices.date} DESC, ${schema_1.invoices.time} DESC`);
-        console.log('\n📋 [TRACE] getAllInvoices Total Rows:', rows.length);
-        console.log('📋 [TRACE] First Row Payload:', JSON.stringify(rows[0] || 'Empty', null, 2));
         return rows.map((r) => ({
             ...r.invoice,
             shipping: Number(r.invoice.shipping || 0) + Number(r.invoice.internal_shipping || 0) + Number(r.invoice.outside_loader_fee || 0),

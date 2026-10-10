@@ -74,7 +74,41 @@ class CrmService {
             .from(schema_1.ledgers)
             .where((0, drizzle_orm_1.eq)(schema_1.ledgers.customer_id, customerId))
             .orderBy((0, drizzle_orm_1.desc)(schema_1.ledgers.date), (0, drizzle_orm_1.desc)(schema_1.ledgers.time), (0, drizzle_orm_1.desc)(schema_1.ledgers.created_at));
-        return result;
+        // Enrich the data to replace UUID reference with Invoice ID and format description with items
+        const enriched = [];
+        for (const entry of result) {
+            const enrichedEntry = { ...entry };
+            if (entry.reference && entry.reference.length > 20) { // Looks like a UUID
+                try {
+                    const invArray = await (0, database_1.getDb)().select().from(schema_1.invoices).where((0, drizzle_orm_1.eq)(schema_1.invoices.id, entry.reference)).limit(1);
+                    if (invArray && invArray.length > 0) {
+                        const inv = invArray[0];
+                        enrichedEntry.reference = inv.invoice_number; // Replace UUID with real Invoice ID
+                        // Fetch items
+                        const items = await (0, database_1.getDb)().select().from(schema_1.invoice_items).where((0, drizzle_orm_1.eq)(schema_1.invoice_items.invoice_id, inv.id));
+                        let itemDesc = items.map((i) => `${i.quantity}x ${i.description || 'Item'}`).join(', ');
+                        let extraDesc = [];
+                        if (inv.shipping > 0)
+                            extraDesc.push(`Shipping: PKR ${inv.shipping}`);
+                        if (inv.internal_shipping > 0)
+                            extraDesc.push(`Internal Shipping: PKR ${inv.internal_shipping}`);
+                        if (inv.outside_loader_fee > 0)
+                            extraDesc.push(`Labour: PKR ${inv.outside_loader_fee}`);
+                        if (itemDesc || extraDesc.length > 0) {
+                            enrichedEntry.description = `${itemDesc}` + (extraDesc.length > 0 ? ` | ${extraDesc.join(', ')}` : '');
+                        }
+                        else {
+                            enrichedEntry.description = `Invoice ${inv.invoice_number}`;
+                        }
+                    }
+                }
+                catch (err) {
+                    console.error("Failed to enrich ledger entry", err);
+                }
+            }
+            enriched.push(enrichedEntry);
+        }
+        return enriched;
     }
     static async createLedgerEntry(data) {
         // Note: better-sqlite3 does not support async callbacks in getDb().transaction. 
