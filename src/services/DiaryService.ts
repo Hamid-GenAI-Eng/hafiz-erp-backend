@@ -396,7 +396,7 @@ export class DiaryService {
       total_bill: 0,
       amount_paid: data.amount,
       payments: JSON.stringify([{ id: Date.now(), amount: data.amount, time: data.time || new Date().toTimeString().slice(0, 5), note: data.note }]),
-      status: 'pending', 
+      status: 'cleared', 
       created_at: new Date(),
       updated_at: new Date()
     };

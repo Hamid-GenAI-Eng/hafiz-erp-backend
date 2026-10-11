@@ -62,10 +62,15 @@ export class DashboardService {
       .where(and(eq(logistics_expenses.type, 'expense'), gte(logistics_expenses.date, startDateStr), lte(logistics_expenses.date, endDateStr)));
     const logisticsExp = logisticsExpRes[0]?.total || 0;
 
-    const outsideLoaderFeesRes = await getDb().select({ total: sql<number>`SUM(outside_loader_fee)` })
+    const invOutsideLoaderFeesRes = await getDb().select({ total: sql<number>`SUM(outside_loader_fee)` })
       .from(invoices)
       .where(and(sql`${invoices.status} IN ('active', 'Completed', 'Paid')`, sql`${invoices.outside_loader_fee} > 0`, isNull(invoices.deleted_at), gte(invoices.date, startDateStr), lte(invoices.date, endDateStr)));
-    const outsideLoaderFees = outsideLoaderFeesRes[0]?.total || 0;
+      
+    const diaryOutsideLoaderFeesRes = await getDb().select({ total: sql<number>`SUM(outside_loader_fee)` })
+      .from(diary)
+      .where(and(sql`${diary.status} = 'pending'`, sql`${diary.outside_loader_fee} > 0`, isNull(diary.deleted_at), gte(diary.date, startDateStr), lte(diary.date, endDateStr)));
+
+    const outsideLoaderFees = (invOutsideLoaderFeesRes[0]?.total || 0) + (diaryOutsideLoaderFeesRes[0]?.total || 0);
 
     const totalCashOut = supplierCashOut + miscExp + logisticsExp + outsideLoaderFees;
     const totalExpensesForDashboard = miscExp + logisticsExp + outsideLoaderFees;
@@ -146,7 +151,11 @@ export class DashboardService {
     const totalSales = (cogsRes[0]?.sales || 0) + (diaryCogsRes[0]?.sales || 0);
     const totalCOGS = (cogsRes[0]?.cogs || 0) + (diaryCogsRes[0]?.cogs || 0);
 
-    const internalShippingRes = await getDb().select({ total: sql<number>`SUM(internal_shipping)` })
+    const invoiceShippingRes = await getDb().select({ 
+      internal: sql<number>`SUM(internal_shipping)`,
+      external: sql<number>`SUM(shipping)`,
+      outside: sql<number>`SUM(outside_loader_fee)`
+    })
       .from(invoices)
       .where(and(
         sql`${invoices.status} IN ('active', 'Completed', 'Paid')`,
@@ -154,9 +163,27 @@ export class DashboardService {
         gte(invoices.date, startDateStr),
         lte(invoices.date, endDateStr)
       ));
-    const totalInternalShipping = internalShippingRes[0]?.total || 0;
+      
+    const diaryShippingRes = await getDb().select({ 
+      internal: sql<number>`SUM(internal_shipping)`,
+      external: sql<number>`SUM(shipping)`,
+      outside: sql<number>`SUM(outside_loader_fee)`
+    })
+      .from(diary)
+      .where(and(
+        sql`${diary.status} = 'pending'`,
+        isNull(diary.deleted_at),
+        gte(diary.date, startDateStr),
+        lte(diary.date, endDateStr)
+      ));
 
-    const netProfit = totalSales + totalInternalShipping - totalCOGS - totalExpensesForDashboard;
+    const totalShippingRev = 
+      (invoiceShippingRes[0]?.internal || 0) + 
+      (invoiceShippingRes[0]?.external || 0) + 
+      (diaryShippingRes[0]?.internal || 0) + 
+      (diaryShippingRes[0]?.external || 0);
+
+    const netProfit = totalSales + totalShippingRev - totalCOGS - totalExpensesForDashboard;
 
     // 6. Recent Invoices
     const recentInvoices = await getDb().select({
