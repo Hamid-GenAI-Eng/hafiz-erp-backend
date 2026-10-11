@@ -183,7 +183,35 @@ export class DashboardService {
       (diaryShippingRes[0]?.internal || 0) + 
       (diaryShippingRes[0]?.external || 0);
 
-    const netProfit = totalSales + totalShippingRev - totalCOGS - totalExpensesForDashboard;
+    const invLabourRes = await getDb().select({ 
+      total: sql<number>`SUM(${invoice_items.total_price})` 
+    })
+    .from(invoice_items)
+    .innerJoin(invoices, eq(invoice_items.invoice_id, invoices.id))
+    .where(and(
+      sql`${invoices.status} IN ('active', 'Completed', 'Paid')`,
+      isNull(invoices.deleted_at),
+      sql`(${invoice_items.product_id} = 'LABOUR' OR LOWER(${invoice_items.description}) LIKE '%labour%' OR LOWER(${invoice_items.description}) LIKE '%steel binding%')`,
+      gte(invoices.date, startDateStr),
+      lte(invoices.date, endDateStr)
+    ));
+
+    const diaryLabourRes = await getDb().select({ 
+      total: sql<number>`SUM(${diary_items.total_price})` 
+    })
+    .from(diary_items)
+    .innerJoin(diary, eq(diary_items.diary_id, diary.id))
+    .where(and(
+      sql`${diary.status} = 'pending'`,
+      isNull(diary.deleted_at),
+      sql`(${diary_items.product_id} = 'LABOUR' OR LOWER(${diary_items.description}) LIKE '%labour%' OR LOWER(${diary_items.description}) LIKE '%steel binding%')`,
+      gte(diary.date, startDateStr),
+      lte(diary.date, endDateStr)
+    ));
+
+    const totalLabourFee = (Number(invLabourRes[0]?.total) || 0) + (Number(diaryLabourRes[0]?.total) || 0);
+    const materialSales = totalSales - totalLabourFee;
+    const netProfit = (materialSales - totalCOGS) + (totalLabourFee * 0.10) + totalShippingRev - totalExpensesForDashboard;
 
     // 6. Recent Invoices
     const recentInvoices = await getDb().select({
